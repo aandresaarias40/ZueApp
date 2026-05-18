@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "288448813875",
+    "project_id": "zue-app",
+    "storage_bucket": "zue-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:288448813875:android:d99d433289074398b6fc46",
+        "android_client_info": {
+          "package_name": "com.example.zue"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA5aPu4Vda6mXilE2TRE7DMgQ9eRXRuB74"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:288448813875:android:1653a2b02eda340fb6fc46",
+        "android_client_info": {
+          "package_name": "com.zue.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA5aPu4Vda6mXilE2TRE7DMgQ9eRXRuB74"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,351 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import '../../../../core/constants/app_constants.dart';
+import '../../../../core/router/app_router.dart';
+import '../../../../core/theme/app_theme.dart';
+import '../../../../models/trip_model.dart';
+import '../../../trips/bloc/trip_bloc.dart';
+import '../widgets/trip_status_card.dart';
+import '../widgets/driver_info_card.dart';
+import '../widgets/rating_dialog.dart';
+
+class TripTrackingPage extends StatefulWidget {
+  final String tripId;
+  const TripTrackingPage({super.key, required this.tripId});
+
+  @override
+  State<TripTrackingPage> createState() => _TripTrackingPageState();
+}
+
+class _TripTrackingPageState extends State<TripTrackingPage> {
+  GoogleMapController? _mapController;
+  final Set<Marker> _markers = {};
+
+  @override
+  void initState() {
+    super.initState();
+    context.read<TripBloc>().add(WatchTripEvent(tripId: widget.tripId));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: BlocConsumer<TripBloc, TripState>(
+        listener: (context, state) {
+          if (state is TripCompletedState) {
+            // Mostrar diálogo de calificación
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (_) => RatingDialog(
+                driverName: state.trip.driverName ?? 'Conductor',
+                onRated: (rating, comment) {
+                  context.read<TripBloc>().add(RateTripEvent(
+                        tripId: state.trip.id,
+                        driverId: state.trip.driverId!,
+                        rating: rating,
+                        comment: comment,
+                      ));
+                  context.go(AppRoutes.passengerHome);
+                },
+              ),
+            );
+          } else if (state is TripCancelledState) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('El viaje fue cancelado'),
+                backgroundColor: AppTheme.warningColor,
+              ),
+            );
+            context.go(AppRoutes.passengerHome);
+          }
+        },
+        builder: (context, state) {
+          if (state is! TripActiveState) {
+            return const Center(
+              child: CircularProgressIndicator(),
+            );
+          }
+
+          final trip = state.trip;
+          _updateMarkers(trip);
+
+          return Stack(
+            children: [
+              // Mapa
+              GoogleMap(
+                onMapCreated: (controller) {
+                  _mapController = controller;
+                  _centerMap(trip);
+                },
+                initialCameraPosition: CameraPosition(
+                  target: LatLng(trip.originLat, trip.originLng),
+                  zoom: 14,
+                ),
+                markers: _markers,
+                zoomControlsEnabled: false,
+                mapToolbarEnabled: false,
+              ),
+
+              // Botón atrás
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 8),
+                    child: Row(
+                      children: [
+                        if (trip.status == AppConstants.tripStatusRequested)
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 8,
+                                ),
+                              ],
+                            ),
+                            child: IconButton(
+                              icon: const Icon(Icons.close),
+                              onPressed: () => _showCancelDialog(context, trip),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              // Panel de información del viaje
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius:
+                        BorderRadius.vertical(top: Radius.circular(24)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Color(0x15000000),
+                        blurRadius: 20,
+                        offset: Offset(0, -4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Indicador de arrastre
+                      Container(
+                        width: 40,
+                        height: 4,
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: AppTheme.dividerColor,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+
+                      // Estado del viaje
+                      TripStatusCard(status: trip.status),
+                      const SizedBox(height: 16),
+
+                      // Info del conductor (si fue asignado)
+                      if (trip.driverId != null)
+                        DriverInfoCard(trip: trip),
+
+                      // Detalles del viaje
+                      const SizedBox(height: 16),
+                      _TripRouteInfo(trip: trip),
+
+                      if (trip.fare != null) ...[
+                        const SizedBox(height: 12),
+                        _FareInfo(fare: trip.fare!),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _updateMarkers(TripModel trip) {
+    _markers.clear();
+    _markers.add(Marker(
+      markerId: const MarkerId('origin'),
+      position: LatLng(trip.originLat, trip.originLng),
+      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+      infoWindow: const InfoWindow(title: 'Origen'),
+    ));
+    _markers.add(Marker(
+      markerId: const MarkerId('destination'),
+      position: LatLng(trip.destinationLat, trip.destinationLng),
+      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+      infoWindow: const InfoWindow(title: 'Destino'),
+    ));
+  }
+
+  void _centerMap(TripModel trip) {
+    _mapController?.animateCamera(
+      CameraUpdate.newLatLngBounds(
+        LatLngBounds(
+          southwest: LatLng(
+            trip.originLat < trip.destinationLat
+                ? trip.originLat
+                : trip.destinationLat,
+            trip.originLng < trip.destinationLng
+                ? trip.originLng
+                : trip.destinationLng,
+          ),
+          northeast: LatLng(
+            trip.originLat > trip.destinationLat
+                ? trip.originLat
+                : trip.destinationLat,
+            trip.originLng > trip.destinationLng
+                ? trip.originLng
+                : trip.destinationLng,
+          ),
+        ),
+        80,
+      ),
+    );
+  }
+
+  void _showCancelDialog(BuildContext context, TripModel trip) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cancelar viaje'),
+        content: const Text(
+            '¿Estás seguro de que deseas cancelar este viaje?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('No'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              context.read<TripBloc>().add(CancelTripEvent(
+                    tripId: trip.id,
+                    driverId: trip.driverId,
+                    reason: 'Cancelado por pasajero',
+                  ));
+            },
+            style: TextButton.styleFrom(
+                foregroundColor: AppTheme.errorColor),
+            child: const Text('Cancelar viaje'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TripRouteInfo extends StatelessWidget {
+  final TripModel trip;
+  const _TripRouteInfo({required this.trip});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.backgroundColor,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.circle,
+                  size: 12, color: AppTheme.successColor),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  trip.originAddress,
+                  style: const TextStyle(fontSize: 13),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const Padding(
+            padding: EdgeInsets.only(left: 5),
+            child: Column(
+              children: [
+                SizedBox(height: 2),
+                Icon(Icons.more_vert,
+                    size: 16, color: AppTheme.textSecondary),
+                SizedBox(height: 2),
+              ],
+            ),
+          ),
+          Row(
+            children: [
+              const Icon(Icons.location_on,
+                  size: 14, color: AppTheme.errorColor),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  trip.destinationAddress,
+                  style: const TextStyle(fontSize: 13),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FareInfo extends StatelessWidget {
+  final double fare;
+  const _FareInfo({required this.fare});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppTheme.primaryColor.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Text(
+            'Tarifa estimada',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+          ),
+          Text(
+            '\$${fare.toStringAsFixed(0)} COP',
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.primaryColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
