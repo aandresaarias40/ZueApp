@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../../core/theme/app_theme.dart';
 
 class AuthTextField extends StatelessWidget {
@@ -11,8 +12,10 @@ class AuthTextField extends StatelessWidget {
   final Widget? suffixIcon;
   final String? Function(String?)? validator;
   final int? maxLines;
+  final int? maxLength;
   final bool enabled;
   final void Function(String)? onChanged;
+  final List<TextInputFormatter>? inputFormatters;
 
   const AuthTextField({
     super.key,
@@ -25,8 +28,10 @@ class AuthTextField extends StatelessWidget {
     this.suffixIcon,
     this.validator,
     this.maxLines = 1,
+    this.maxLength,
     this.enabled = true,
     this.onChanged,
+    this.inputFormatters,
   });
 
   @override
@@ -36,9 +41,11 @@ class AuthTextField extends StatelessWidget {
       obscureText: obscureText,
       keyboardType: keyboardType,
       maxLines: obscureText ? 1 : maxLines,
+      maxLength: maxLength,
       enabled: enabled,
       onChanged: onChanged,
       validator: validator,
+      inputFormatters: inputFormatters,
       style: const TextStyle(
         fontFamily: 'Poppins',
         fontSize: 15,
@@ -47,6 +54,7 @@ class AuthTextField extends StatelessWidget {
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
+        counterText: '',  // Ocultar contador de caracteres
         prefixIcon: prefixIcon != null
             ? Icon(prefixIcon, color: AppTheme.textSecondary, size: 22)
             : null,

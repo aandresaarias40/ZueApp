@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../auth/bloc/auth_bloc.dart';
 import '../../../trips/bloc/trip_bloc.dart';
@@ -19,6 +20,8 @@ class _RequestTripPageState extends State<RequestTripPage> {
   final _destinationController = TextEditingController();
   Position? _originPosition;
   String _originAddress = 'Obteniendo ubicación...';
+  String _originCity = '';        // Ciudad actual del pasajero
+  String _originLocality = '';    // Municipio/barrio para sesgar geocoding
   String _destinationAddress = '';
   double? _destinationLat;
   double? _destinationLng;
@@ -44,65 +47,119 @@ class _RequestTripPageState extends State<RequestTripPage> {
   Future<void> _getOriginLocation() async {
     try {
       final position = await Geolocator.getCurrentPosition();
+      if (!mounted) return;
+      // Guardar posición de inmediato, incluso si geocoding falla
+      setState(() => _originPosition = position);
+
       final placemarks = await placemarkFromCoordinates(
         position.latitude, position.longitude,
       );
+      if (!mounted) return;
       if (placemarks.isNotEmpty) {
         final p = placemarks.first;
+        final locality = p.locality ?? p.subAdministrativeArea ?? '';
+        final adminArea = p.administrativeArea ?? '';
         setState(() {
-          _originPosition = position;
+          _originCity = locality.isNotEmpty ? locality : adminArea;
+          _originLocality = locality;
           _originAddress =
-              '${p.street ?? ''}, ${p.locality ?? ''}'.trim().replaceAll(RegExp('^,\\s*'), '');
+              '${p.street ?? ''}, $locality'.trim().replaceAll(RegExp('^,\\s*'), '');
         });
+      } else {
+        setState(() => _originAddress =
+            '${position.latitude.toStringAsFixed(5)}, ${position.longitude.toStringAsFixed(5)}');
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() => _originAddress = 'No se pudo obtener ubicación');
     }
   }
 
   Future<void> _searchDestination(String query) async {
     if (query.length < 3) return;
-    setState(() => _isSearching = true);
+    if (!mounted) return;
+    setState(() {
+      _isSearching = true;
+      _destinationLat = null;
+      _destinationLng = null;
+      _estimatedFare = null;
+      _estimatedDistance = null;
+    });
     try {
-      final locations = await locationFromAddress('$query, Colombia');
+      final searchQuery = _originCity.isNotEmpty
+          ? '$query, $_originCity, Colombia'
+          : '$query, Colombia';
+
+      final locations = await locationFromAddress(searchQuery);
+      if (!mounted) return;
+
       if (locations.isNotEmpty) {
         final loc = locations.first;
-        final placemarks =
-            await placemarkFromCoordinates(loc.latitude, loc.longitude);
-        if (placemarks.isNotEmpty) {
-          final p = placemarks.first;
-          final address =
-              '${p.street ?? ''}, ${p.locality ?? ''}, ${p.country ?? ''}';
 
-          // Calcular distancia y tarifa estimada
-          if (_originPosition != null) {
-            final distanceMeters = Geolocator.distanceBetween(
-              _originPosition!.latitude,
-              _originPosition!.longitude,
-              loc.latitude,
-              loc.longitude,
+        if (_originPosition != null) {
+          final distanceMeters = Geolocator.distanceBetween(
+            _originPosition!.latitude,
+            _originPosition!.longitude,
+            loc.latitude,
+            loc.longitude,
+          );
+          final distanceKm = distanceMeters / 1000;
+
+          if (distanceKm > 30) {
+            if (!mounted) return;
+            setState(() => _isSearching = false);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Destino muy lejos (${distanceKm.toStringAsFixed(0)} km). '
+                  'Verifica la dirección.',
+                ),
+                backgroundColor: AppTheme.warningColor,
+                duration: const Duration(seconds: 3),
+              ),
             );
-            final distanceKm = distanceMeters / 1000;
-            final fare = _tripService.estimateFare(distanceKm);
-
-            setState(() {
-              _destinationAddress = address;
-              _destinationLat = loc.latitude;
-              _destinationLng = loc.longitude;
-              _estimatedDistance = distanceKm;
-              _estimatedFare = fare;
-              _isSearching = false;
-            });
+            return;
           }
+
+          final placemarks =
+              await placemarkFromCoordinates(loc.latitude, loc.longitude);
+          if (!mounted) return;
+
+          final p = placemarks.isNotEmpty ? placemarks.first : null;
+          final address = p != null
+              ? '${p.street ?? ''}, ${p.locality ?? ''}'.trim().replaceAll(RegExp('^,\\s*'), '')
+              : query;
+
+          final fare = _tripService.estimateFare(distanceKm);
+
+          setState(() {
+            _destinationAddress = address;
+            _destinationLat = loc.latitude;
+            _destinationLng = loc.longitude;
+            _estimatedDistance = distanceKm;
+            _estimatedFare = fare;
+            _isSearching = false;
+          });
         }
+      } else {
+        if (!mounted) return;
+        setState(() => _isSearching = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No se encontró esa dirección. Intenta ser más específico.'),
+            duration: Duration(seconds: 2),
+          ),
+        );
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() => _isSearching = false);
     }
   }
 
   Future<void> _requestTrip() async {
     if (_originPosition == null || _destinationLat == null) return;
+    if (!mounted) return;
     final authState = context.read<AuthBloc>().state;
     if (authState is! AuthAuthenticatedState) return;
 
@@ -121,7 +178,7 @@ class _RequestTripPageState extends State<RequestTripPage> {
             estimatedDistance: _estimatedDistance,
           ));
     } finally {
-      setState(() => _isRequesting = false);
+      if (mounted) setState(() => _isRequesting = false);
     }
   }
 
@@ -132,7 +189,7 @@ class _RequestTripPageState extends State<RequestTripPage> {
         title: const Text('Solicitar Viaje'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new),
-          onPressed: () => context.pop(),
+          onPressed: () => context.go(AppRoutes.passengerHome),
         ),
       ),
       body: BlocListener<TripBloc, TripState>(
@@ -306,7 +363,7 @@ class _RequestTripPageState extends State<RequestTripPage> {
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: _destinationLat == null || _isRequesting
+                  onPressed: _destinationLat == null || _originPosition == null || _isRequesting
                       ? null
                       : _requestTrip,
                   child: _isRequesting

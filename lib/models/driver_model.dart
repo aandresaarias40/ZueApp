@@ -18,6 +18,7 @@ class DriverModel {
   final double? currentLng;
   final double rating;
   final int totalTrips;
+  final int ratedTrips; // viajes con calificación acumulada
   final String subscriptionPlan; // weekly, monthly
   final String subscriptionStatus; // active, expired, pending
   final DateTime? subscriptionExpiry;
@@ -40,8 +41,9 @@ class DriverModel {
     this.isOnline = false,
     this.currentLat,
     this.currentLng,
-    this.rating = 5.0,
+    this.rating = 0.0,
     this.totalTrips = 0,
+    this.ratedTrips = 0,
     required this.subscriptionPlan,
     this.subscriptionStatus = 'pending',
     this.subscriptionExpiry,
@@ -56,6 +58,13 @@ class DriverModel {
   }
 
   bool get canWork => isSubscriptionActive && status != 'suspended';
+
+  /// La calificación solo se muestra cuando hay al menos 5 viajes completados.
+  bool get hasRating => totalTrips >= 5;
+
+  /// Texto de calificación para mostrar en UI.
+  String get ratingDisplay =>
+      hasRating ? rating.toStringAsFixed(1) : 'Sin calif.';
 
   int get daysUntilExpiry {
     if (subscriptionExpiry == null) return 0;
@@ -80,8 +89,9 @@ class DriverModel {
       isOnline: data['isOnline'] ?? false,
       currentLat: data['currentLat']?.toDouble(),
       currentLng: data['currentLng']?.toDouble(),
-      rating: (data['rating'] ?? 5.0).toDouble(),
+      rating: (data['rating'] ?? 0.0).toDouble(),
       totalTrips: data['totalTrips'] ?? 0,
+      ratedTrips: data['ratedTrips'] ?? 0,
       subscriptionPlan: data['subscriptionPlan'] ?? 'weekly',
       subscriptionStatus: data['subscriptionStatus'] ?? 'pending',
       subscriptionExpiry: (data['subscriptionExpiry'] as Timestamp?)?.toDate(),
@@ -108,6 +118,7 @@ class DriverModel {
       'currentLng': currentLng,
       'rating': rating,
       'totalTrips': totalTrips,
+      'ratedTrips': ratedTrips,
       'subscriptionPlan': subscriptionPlan,
       'subscriptionStatus': subscriptionStatus,
       'subscriptionExpiry': subscriptionExpiry != null
@@ -126,6 +137,7 @@ class DriverModel {
     double? currentLng,
     double? rating,
     int? totalTrips,
+    int? ratedTrips,
     String? subscriptionStatus,
     DateTime? subscriptionExpiry,
     DateTime? updatedAt,
@@ -148,6 +160,7 @@ class DriverModel {
       currentLng: currentLng ?? this.currentLng,
       rating: rating ?? this.rating,
       totalTrips: totalTrips ?? this.totalTrips,
+      ratedTrips: ratedTrips ?? this.ratedTrips,
       subscriptionPlan: subscriptionPlan,
       subscriptionStatus: subscriptionStatus ?? this.subscriptionStatus,
       subscriptionExpiry: subscriptionExpiry ?? this.subscriptionExpiry,

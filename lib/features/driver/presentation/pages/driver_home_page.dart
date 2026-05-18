@@ -122,10 +122,27 @@ class _DriverHomePageState extends State<DriverHomePage> {
 
     final driver = driverState.driver;
 
-    // Si quiere conectarse, verificar suscripción
-    if (!_isOnline && !driver.isSubscriptionActive) {
-      _showSubscriptionExpiredDialog();
-      return;
+    // Si quiere conectarse, verificar perfil completo
+    if (!_isOnline) {
+      final missingFields = <String>[];
+      if (driver.phone.isEmpty || driver.phone.length < 10) {
+        missingFields.add('Celular');
+      }
+      if (driver.vehiclePlate.isEmpty) missingFields.add('Placa del vehículo');
+      if (driver.vehicleModel.isEmpty) missingFields.add('Modelo del vehículo');
+      if (driver.vehicleColor.isEmpty) missingFields.add('Color del vehículo');
+      if (driver.licenseNumber.isEmpty) missingFields.add('Cédula / Licencia');
+
+      if (missingFields.isNotEmpty) {
+        _showIncompleteProfileDialog(missingFields);
+        return;
+      }
+
+      // Verificar suscripción activa
+      if (!driver.isSubscriptionActive) {
+        _showSubscriptionExpiredDialog();
+        return;
+      }
     }
 
     final newStatus = !_isOnline;
@@ -195,6 +212,60 @@ class _DriverHomePageState extends State<DriverHomePage> {
     });
   }
 
+  void _showIncompleteProfileDialog(List<String> missingFields) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.person_off_outlined, color: AppTheme.warningColor),
+            SizedBox(width: 8),
+            Text('Perfil incompleto'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Completa tu perfil antes de recibir viajes:',
+              style: TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 10),
+            ...missingFields.map(
+              (field) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(
+                  children: [
+                    const Icon(Icons.cancel_outlined,
+                        size: 16, color: AppTheme.errorColor),
+                    const SizedBox(width: 6),
+                    Text(field,
+                        style: const TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w500)),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Después'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              context.go(AppRoutes.driverProfile);
+            },
+            child: const Text('Completar perfil'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showSubscriptionExpiredDialog() {
     showDialog(
       context: context,
@@ -228,6 +299,21 @@ class _DriverHomePageState extends State<DriverHomePage> {
   }
 
   void _onTripRequestTap(TripModel trip) {
+    final driverState = context.read<DriverBloc>().state;
+    if (driverState is! DriverLoadedState) return;
+    final driver = driverState.driver;
+
+    // Bloquear si ya tiene un viaje activo
+    if (driver.status == AppConstants.driverStatusBusy) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Ya tienes un viaje activo. Complétalo primero.'),
+          backgroundColor: AppTheme.warningColor,
+        ),
+      );
+      return;
+    }
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -235,19 +321,14 @@ class _DriverHomePageState extends State<DriverHomePage> {
       builder: (_) => TripRequestSheet(
         trip: trip,
         onAccept: () {
-          final driverState = context.read<DriverBloc>().state;
-          if (driverState is DriverLoadedState) {
-            context.read<TripBloc>().add(AcceptTripEvent(
-                  tripId: trip.id,
-                  driverId: driverState.driver.id,
-                  driverName: driverState.driver.name,
-                  driverPhone: driverState.driver.phone,
-                  vehiclePlate: driverState.driver.vehiclePlate.isNotEmpty
-                      ? driverState.driver.vehiclePlate
-                      : 'Sin placa',
-                  vehicleType: driverState.driver.vehicleType,
-                ));
-          }
+          context.read<TripBloc>().add(AcceptTripEvent(
+                tripId: trip.id,
+                driverId: driver.id,
+                driverName: driver.name,
+                driverPhone: driver.phone,
+                vehiclePlate: driver.vehiclePlate,
+                vehicleType: driver.vehicleType,
+              ));
         },
         onReject: () {},
       ),

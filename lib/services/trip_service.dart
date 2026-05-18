@@ -52,7 +52,32 @@ class TripService {
     required String vehiclePlate,
     required String vehicleType,
   }) async {
-    await _trips.doc(tripId).update({
+    // Verificar que el conductor no tenga ya un viaje activo
+    final driverDoc = await _firestore
+        .collection(AppConstants.driversCollection)
+        .doc(driverId)
+        .get();
+
+    if (driverDoc.exists) {
+      final currentStatus = driverDoc.data()?['status'] as String? ?? '';
+      if (currentStatus == AppConstants.driverStatusBusy) {
+        throw Exception(
+            'Ya tienes un viaje activo. Complétalo antes de aceptar otro.');
+      }
+    }
+
+    // Verificar que el viaje aún esté disponible (no lo tomó otro conductor)
+    final tripDoc = await _trips.doc(tripId).get();
+    if (!tripDoc.exists) {
+      throw Exception('El viaje ya no está disponible.');
+    }
+    final tripStatus = (tripDoc.data() as Map<String, dynamic>?)?['status'] as String? ?? '';
+    if (tripStatus != AppConstants.tripStatusRequested) {
+      throw Exception('Este viaje ya fue tomado por otro conductor.');
+    }
+
+    // Aceptar viaje
+    await _trips.doc(tripId).set({
       'driverId': driverId,
       'driverName': driverName,
       'driverPhone': driverPhone,
@@ -60,13 +85,13 @@ class TripService {
       'vehicleType': vehicleType,
       'status': AppConstants.tripStatusAccepted,
       'acceptedAt': FieldValue.serverTimestamp(),
-    });
+    }, SetOptions(merge: true));
 
     // Marcar conductor como ocupado
     await _firestore
         .collection(AppConstants.driversCollection)
         .doc(driverId)
-        .update({'status': AppConstants.driverStatusBusy});
+        .set({'status': AppConstants.driverStatusBusy}, SetOptions(merge: true));
   }
 
   // Conductor inicia el viaje (recogió al pasajero)
@@ -95,10 +120,13 @@ class TripService {
       if (finalDuration != null) 'duration': finalDuration,
     });
 
-    // Liberar conductor
+    // Liberar conductor e incrementar contador de viajes
     batch.update(
       _firestore.collection(AppConstants.driversCollection).doc(driverId),
-      {'status': AppConstants.driverStatusActive},
+      {
+        'status': AppConstants.driverStatusActive,
+        'totalTrips': FieldValue.increment(1),
+      },
     );
 
     await batch.commit();
@@ -166,21 +194,29 @@ class TripService {
       'passengerComment': comment,
     });
 
-    // Actualizar promedio de calificación del conductor
+    // Actualizar promedio de calificación del conductor.
+    // Solo se calcula promedio real; el valor 5.0 inicial no se usa como base.
     final driverDoc = await _firestore
         .collection(AppConstants.driversCollection)
         .doc(driverId)
         .get();
     if (driverDoc.exists) {
       final data = driverDoc.data() as Map<String, dynamic>;
-      final currentRating = (data['rating'] ?? 5.0).toDouble();
       final totalTrips = (data['totalTrips'] ?? 0) as int;
+      // ratedTrips: cuántos viajes ya tienen calificación acumulada en rating
+      final ratedTrips = (data['ratedTrips'] ?? 0) as int;
+      final currentRating = ratedTrips > 0
+          ? (data['rating'] ?? 0.0).toDouble()
+          : 0.0; // ignorar el 5.0 por defecto si aún no hay calificaciones
       final newRating =
-          ((currentRating * totalTrips) + rating) / (totalTrips + 1);
+          ((currentRating * ratedTrips) + rating) / (ratedTrips + 1);
       await _firestore
           .collection(AppConstants.driversCollection)
           .doc(driverId)
-          .update({'rating': newRating});
+          .update({
+        'rating': newRating,
+        'ratedTrips': ratedTrips + 1,
+      });
     }
   }
 
@@ -211,6 +247,20 @@ class TripService {
             snapshot.docs.map((doc) => TripModel.fromFirestore(doc)).toList());
   }
 
+  // Obtener un viaje por ID una sola vez
+  Future<TripModel?> fetchTripById(String tripId) async {
+    final doc = await _trips.doc(tripId).get();
+    return doc.exists ? TripModel.fromFirestore(doc) : null;
+  }
+
+  // Stream de un viaje específico por su ID (para el pasajero en tracking)
+  Stream<TripModel?> watchTripById(String tripId) {
+    return _trips
+        .doc(tripId)
+        .snapshots()
+        .map((doc) => doc.exists ? TripModel.fromFirestore(doc) : null);
+  }
+
   // Stream del viaje activo del conductor
   Stream<TripModel?> watchDriverActiveTrip(String driverId) {
     return _trips
@@ -228,6 +278,8 @@ class TripService {
   }
 
   // Historial de viajes del pasajero
+  // Nota: se evita orderBy compuesto para no requerir índice manual en Firestore.
+  // El ordenamiento se hace en memoria después de obtener los datos.
   Future<List<TripModel>> getPassengerTripHistory(String passengerId) async {
     final snapshot = await _trips
         .where('passengerId', isEqualTo: passengerId)
@@ -235,10 +287,13 @@ class TripService {
           AppConstants.tripStatusCompleted,
           AppConstants.tripStatusCancelled,
         ])
-        .orderBy('createdAt', descending: true)
         .limit(AppConstants.pageSize)
         .get();
-    return snapshot.docs.map((doc) => TripModel.fromFirestore(doc)).toList();
+    final trips = snapshot.docs
+        .map((doc) => TripModel.fromFirestore(doc))
+        .toList();
+    trips.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return trips;
   }
 
   // Todos los viajes para admin (tiempo real)

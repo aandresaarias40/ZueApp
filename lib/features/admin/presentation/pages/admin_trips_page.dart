@@ -121,7 +121,7 @@ class _AdminTripsPageState extends State<AdminTripsPage> {
                       ),
                       title: Text(driver.name),
                       subtitle: Text(
-                          '${driver.vehiclePlate} · ${driver.vehicleType == 'car' ? 'Carro' : 'Moto'} · ⭐ ${driver.rating.toStringAsFixed(1)}'),
+                          '${driver.vehiclePlate} · ${driver.vehicleType == 'car' ? 'Carro' : 'Moto'}${driver.hasRating ? ' · ⭐ ${driver.rating.toStringAsFixed(1)}' : ''}'),
                       trailing: ElevatedButton(
                         onPressed: () async {
                           await _tripService.manuallyAssignTrip(

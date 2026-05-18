@@ -63,13 +63,19 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
           }
         },
         builder: (context, state) {
-          if (state is! TripActiveState) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
+          // Mientras el stream se establece, puede llegar TripRequestedState
+          // desde la pantalla anterior. Usamos ese trip si está disponible.
+          final TripModel? tripData = state is TripActiveState
+              ? state.trip
+              : state is TripRequestedState
+                  ? state.trip
+                  : null;
+
+          if (tripData == null) {
+            return const Center(child: CircularProgressIndicator());
           }
 
-          final trip = state.trip;
+          final trip = tripData;
           _updateMarkers(trip);
 
           return Stack(

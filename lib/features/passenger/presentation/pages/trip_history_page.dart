@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../models/trip_model.dart';
 import '../../../auth/bloc/auth_bloc.dart';
@@ -28,9 +30,55 @@ class _TripHistoryPageState extends State<TripHistoryPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Mis Viajes')),
+      appBar: AppBar(
+        title: const Text('Mis Viajes'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new),
+          onPressed: () => context.go(AppRoutes.passengerHome),
+        ),
+      ),
       body: BlocBuilder<TripBloc, TripState>(
         builder: (context, state) {
+          if (state is TripErrorState) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.error_outline,
+                        size: 64,
+                        color: AppTheme.textSecondary.withOpacity(0.4)),
+                    const SizedBox(height: 16),
+                    Text(
+                      'No se pudo cargar el historial',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textSecondary,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        final authState = context.read<AuthBloc>().state;
+                        if (authState is AuthAuthenticatedState) {
+                          context.read<TripBloc>().add(
+                                LoadTripHistoryEvent(
+                                    passengerId: authState.user.id),
+                              );
+                        }
+                      },
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Reintentar'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+
           if (state is TripHistoryLoadedState) {
             if (state.trips.isEmpty) {
               return Center(

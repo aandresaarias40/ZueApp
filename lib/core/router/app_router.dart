@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/auth/presentation/pages/login_page.dart';
@@ -6,6 +7,7 @@ import '../../features/auth/presentation/pages/register_passenger_page.dart';
 import '../../features/auth/presentation/pages/register_driver_page.dart';
 import '../../features/auth/presentation/pages/splash_page.dart';
 import '../../features/passenger/presentation/pages/passenger_home_page.dart';
+import '../../features/passenger/presentation/pages/passenger_profile_page.dart';
 import '../../features/passenger/presentation/pages/request_trip_page.dart';
 import '../../features/passenger/presentation/pages/trip_tracking_page.dart';
 import '../../features/passenger/presentation/pages/trip_history_page.dart';
@@ -17,6 +19,8 @@ import '../../features/admin/presentation/pages/admin_drivers_page.dart';
 import '../../features/admin/presentation/pages/admin_payments_page.dart';
 import '../../features/admin/presentation/pages/admin_trips_page.dart';
 import '../../features/auth/bloc/auth_bloc.dart';
+import '../../features/trips/bloc/trip_bloc.dart';
+import '../../features/trips/data/repositories/trip_repository_impl.dart';
 
 class AppRoutes {
   // Auth
@@ -27,6 +31,7 @@ class AppRoutes {
 
   // Passenger
   static const String passengerHome = '/passenger/home';
+  static const String passengerProfile = '/passenger/profile';
   static const String requestTrip = '/passenger/request';
   static const String tripTracking = '/passenger/tracking/:tripId';
   static const String tripHistory = '/passenger/history';
@@ -108,8 +113,18 @@ class AppRouter {
           ),
         ),
         GoRoute(
+          path: AppRoutes.passengerProfile,
+          builder: (_, __) => const PassengerProfilePage(),
+        ),
+        GoRoute(
           path: AppRoutes.tripHistory,
-          builder: (_, __) => const TripHistoryPage(),
+          // BLoC propio para no contaminar el estado del home con el historial
+          builder: (context, state) => BlocProvider(
+            create: (ctx) => TripBloc(
+              tripRepository: ctx.read<TripRepositoryImpl>(),
+            ),
+            child: const TripHistoryPage(),
+          ),
         ),
 
         // Driver Routes

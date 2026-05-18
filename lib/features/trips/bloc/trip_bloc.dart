@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../../models/trip_model.dart';
 import '../../../services/trip_service.dart';
 import '../data/repositories/trip_repository_impl.dart';
@@ -207,7 +208,11 @@ class TripBloc extends Bloc<TripEvent, TripState> {
         vehiclePlate: event.vehiclePlate,
         vehicleType: event.vehicleType,
       );
-      // El viaje aceptado lo manejará el stream
+      // Obtener el viaje actualizado y emitir estado aceptado
+      final trip = await _tripService.fetchTripById(event.tripId);
+      if (trip != null) {
+        emit(TripAcceptedState(trip: trip));
+      }
     } catch (e) {
       emit(TripErrorState(message: e.toString()));
     }
@@ -217,11 +222,15 @@ class TripBloc extends Bloc<TripEvent, TripState> {
       WatchTripEvent event, Emitter<TripState> emit) async {
     await _tripSubscription?.cancel();
     await emit.forEach(
-      _tripService.watchDriverActiveTrip(event.tripId),
+      _tripService.watchTripById(event.tripId),
       onData: (trip) {
         if (trip == null) return TripInitialState();
-        if (trip.status == 'completed') return TripCompletedState(trip: trip);
-        if (trip.status == 'cancelled') return TripCancelledState();
+        if (trip.status == AppConstants.tripStatusCompleted) {
+          return TripCompletedState(trip: trip);
+        }
+        if (trip.status == AppConstants.tripStatusCancelled) {
+          return TripCancelledState();
+        }
         return TripActiveState(trip: trip);
       },
     );

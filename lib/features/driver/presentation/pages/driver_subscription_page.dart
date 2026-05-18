@@ -25,6 +25,7 @@ class _DriverSubscriptionPageState extends State<DriverSubscriptionPage> {
   final PaymentService _paymentService = PaymentService();
 
   Future<void> _initiatePayment() async {
+    if (!mounted) return;
     final driverState = context.read<DriverBloc>().state;
     if (driverState is! DriverLoadedState) return;
 
@@ -36,21 +37,21 @@ class _DriverSubscriptionPageState extends State<DriverSubscriptionPage> {
         plan: _selectedPlan,
       );
 
+      if (!mounted) return;
       setState(() {
         _paymentUrl = result['redirectUrl'];
         _paymentId = result['paymentId'];
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al iniciar pago: $e'),
-            backgroundColor: AppTheme.errorColor,
-          ),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al iniciar pago: $e'),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
     }
   }
 
@@ -96,6 +97,7 @@ class _DriverSubscriptionPageState extends State<DriverSubscriptionPage> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new),
           onPressed: () => context.go(AppRoutes.driverHome),
+          tooltip: 'Volver',
         ),
       ),
       body: BlocBuilder<DriverBloc, DriverState>(

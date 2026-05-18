@@ -39,14 +39,17 @@ class _PassengerHomePageState extends State<PassengerHomePage> {
   Future<void> _getCurrentLocation() async {
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!mounted) return;
       if (!serviceEnabled) {
         setState(() => _isLocating = false);
         return;
       }
 
       LocationPermission permission = await Geolocator.checkPermission();
+      if (!mounted) return;
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
+        if (!mounted) return;
         if (permission == LocationPermission.denied) {
           setState(() => _isLocating = false);
           return;
@@ -57,6 +60,7 @@ class _PassengerHomePageState extends State<PassengerHomePage> {
         desiredAccuracy: LocationAccuracy.high,
       );
 
+      if (!mounted) return;
       setState(() {
         _currentPosition = position;
         _isLocating = false;
@@ -78,6 +82,7 @@ class _PassengerHomePageState extends State<PassengerHomePage> {
         ),
       );
     } catch (e) {
+      if (!mounted) return;
       setState(() => _isLocating = false);
     }
   }
@@ -392,7 +397,10 @@ class _ProfileMenu extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.person_outline),
             title: const Text('Mi perfil'),
-            onTap: () => Navigator.pop(context),
+            onTap: () {
+              Navigator.pop(context);
+              context.go(AppRoutes.passengerProfile);
+            },
           ),
           ListTile(
             leading: const Icon(Icons.history),

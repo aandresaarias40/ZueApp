@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../bloc/auth_bloc.dart';
 import '../widgets/auth_text_field.dart';
@@ -49,7 +51,7 @@ class _RegisterPassengerPageState extends State<RegisterPassengerPage> {
         title: const Text('Registrarse como Pasajero'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new),
-          onPressed: () => context.pop(),
+          onPressed: () => context.go(AppRoutes.login),
         ),
       ),
       body: BlocConsumer<AuthBloc, AuthState>(
@@ -114,14 +116,15 @@ class _RegisterPassengerPageState extends State<RegisterPassengerPage> {
                   AuthTextField(
                     controller: _phoneController,
                     label: 'Celular',
-                    hint: '300 000 0000',
+                    hint: '3001234567',
                     keyboardType: TextInputType.phone,
                     prefixIcon: Icons.phone_outlined,
+                    maxLength: 10,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     validator: (v) {
                       if (v == null || v.isEmpty) return 'Ingresa tu celular';
-                      if (v.replaceAll(' ', '').length < 10) {
-                        return 'Celular inválido';
-                      }
+                      if (v.length != 10) return 'El celular debe tener 10 dígitos';
+                      if (!v.startsWith('3')) return 'El celular debe comenzar con 3';
                       return null;
                     },
                   ),

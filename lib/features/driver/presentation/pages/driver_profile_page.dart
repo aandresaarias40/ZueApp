@@ -320,26 +320,35 @@ class _FullProfile extends StatelessWidget {
           ),
           const SizedBox(height: 4),
 
-          // Estrellas de calificación
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              ...List.generate(
-                5,
-                (i) => Icon(
-                  i < driver.rating.round() ? Icons.star : Icons.star_border,
-                  size: 18,
-                  color: AppTheme.accentColor,
+          // Estrellas de calificación (solo cuando hay ≥5 viajes)
+          if (driver.hasRating)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ...List.generate(
+                  5,
+                  (i) => Icon(
+                    i < driver.rating.round()
+                        ? Icons.star
+                        : Icons.star_border,
+                    size: 18,
+                    color: AppTheme.accentColor,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                driver.rating.toStringAsFixed(1),
-                style: const TextStyle(
-                    fontSize: 14, color: AppTheme.textSecondary),
-              ),
-            ],
-          ),
+                const SizedBox(width: 6),
+                Text(
+                  driver.rating.toStringAsFixed(1),
+                  style: const TextStyle(
+                      fontSize: 14, color: AppTheme.textSecondary),
+                ),
+              ],
+            )
+          else
+            Text(
+              'Sin calificación aún',
+              style: TextStyle(
+                  fontSize: 13, color: AppTheme.textSecondary),
+            ),
 
           const SizedBox(height: 32),
 
@@ -423,7 +432,7 @@ class _FullProfile extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: _StatCard(
-                  value: driver.rating.toStringAsFixed(1),
+                  value: driver.ratingDisplay,
                   label: 'Calificación',
                   icon: Icons.star,
                 ),
