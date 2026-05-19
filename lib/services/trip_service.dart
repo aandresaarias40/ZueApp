@@ -310,9 +310,13 @@ class TripService {
             snapshot.docs.map((doc) => TripModel.fromFirestore(doc)).toList());
   }
 
-  // Calcular tarifa estimada (COP)
+  // Calcular tarifa estimada (COP) — Tarifas de Fusagasugá
   double estimateFare(double distanceKm) {
-    // Tarifa base: $3.000 COP + $1.200 por km
+    // Tarifa mínima fija: cualquier ruta < 6 km cuesta $8.000 COP (tarifa oficial Fusagasugá)
+    if (distanceKm < AppConstants.minimumFareDistanceKm) {
+      return AppConstants.minimumFare;
+    }
+    // Para rutas de 6 km en adelante: tarifa base $3.000 + $1.200 por km adicional
     const double baseFare = 3000;
     const double perKm = 1200;
     final double fare = baseFare + (distanceKm * perKm);

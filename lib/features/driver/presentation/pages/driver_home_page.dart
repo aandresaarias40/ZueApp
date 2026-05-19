@@ -106,6 +106,28 @@ class _DriverHomePageState extends State<DriverHomePage> {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+  // Centrar el mapa en la ubicación actual (botón personalizado)
+  // ─────────────────────────────────────────────────────────────────────────
+  Future<void> _centerOnCurrentLocation() async {
+    if (_currentPosition != null) {
+      _mapController?.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: LatLng(
+              _currentPosition!.latitude,
+              _currentPosition!.longitude,
+            ),
+            zoom: 16,
+          ),
+        ),
+      );
+    } else {
+      // Si aún no tenemos posición, intentar obtenerla
+      await _getInitialLocation();
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
   // Toggle conectado / desconectado
   // ─────────────────────────────────────────────────────────────────────────
   Future<void> _toggleOnlineStatus() async {
@@ -386,7 +408,7 @@ class _DriverHomePageState extends State<DriverHomePage> {
                     zoom: _currentPosition != null ? 15 : AppConstants.defaultZoom,
                   ),
                   myLocationEnabled: true,
-                  myLocationButtonEnabled: true,
+                  myLocationButtonEnabled: false, // Se usa botón personalizado
                   zoomControlsEnabled: false,
                   mapToolbarEnabled: false,
                 ),
@@ -432,8 +454,12 @@ class _DriverHomePageState extends State<DriverHomePage> {
                     ),
                   ),
 
-                // ── Banner suscripción vencida ─────────────────────────────
-                if (driver != null && !driver.isSubscriptionActive)
+                // ── Banner suscripción / trial ────────────────────────────
+                // Se muestra en trial, suscripción vencida o próxima a vencer.
+                if (driver != null &&
+                    (driver.isOnTrial ||
+                        !driver.isSubscriptionActive ||
+                        driver.daysUntilExpiry <= 3))
                   Positioned(
                     top: 0,
                     left: 0,
@@ -447,9 +473,12 @@ class _DriverHomePageState extends State<DriverHomePage> {
                     ),
                   ),
 
-                // ── Header: estado + botón perfil ─────────────────────────
+                // ── Header: estado + botones (perfil + centrar mapa) ──────
                 Positioned(
-                  top: (driver != null && !driver.isSubscriptionActive)
+                  top: (driver != null &&
+                          (driver.isOnTrial ||
+                              !driver.isSubscriptionActive ||
+                              driver.daysUntilExpiry <= 3))
                       ? 80
                       : 0,
                   left: 0,
@@ -459,6 +488,7 @@ class _DriverHomePageState extends State<DriverHomePage> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 8),
                       child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           // Chip de estado
                           _StatusChip(
@@ -466,10 +496,21 @@ class _DriverHomePageState extends State<DriverHomePage> {
                             isLoading: isDriverLoading,
                           ),
                           const Spacer(),
-                          // Botón perfil
-                          _MapButton(
-                            icon: Icons.person_outline,
-                            onTap: () => context.go(AppRoutes.driverProfile),
+                          // Columna derecha: perfil y centrar mapa
+                          Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _MapButton(
+                                icon: Icons.person_outline,
+                                onTap: () =>
+                                    context.go(AppRoutes.driverProfile),
+                              ),
+                              const SizedBox(height: 10),
+                              _MapButton(
+                                icon: Icons.my_location,
+                                onTap: _centerOnCurrentLocation,
+                              ),
+                            ],
                           ),
                         ],
                       ),

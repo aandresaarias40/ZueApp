@@ -255,8 +255,13 @@ class _RegisterDriverPageState extends State<RegisterDriverPage> {
                     label: 'Carro',
                     isSelected:
                         _selectedVehicleType == AppConstants.vehicleCar,
-                    onTap: () => setState(
-                        () => _selectedVehicleType = AppConstants.vehicleCar),
+                    onTap: () {
+                      setState(() => _selectedVehicleType = AppConstants.vehicleCar);
+                      // Limpiar placa para que el usuario la reescriba con el formato correcto
+                      if (_plateController.text.isNotEmpty) {
+                        _plateController.clear();
+                      }
+                    },
                   ),
                   const SizedBox(width: 12),
                   _VehicleTypeCard(
@@ -264,8 +269,12 @@ class _RegisterDriverPageState extends State<RegisterDriverPage> {
                     label: 'Moto',
                     isSelected:
                         _selectedVehicleType == AppConstants.vehicleMoto,
-                    onTap: () => setState(
-                        () => _selectedVehicleType = AppConstants.vehicleMoto),
+                    onTap: () {
+                      setState(() => _selectedVehicleType = AppConstants.vehicleMoto);
+                      if (_plateController.text.isNotEmpty) {
+                        _plateController.clear();
+                      }
+                    },
                   ),
                 ],
               ),
@@ -274,7 +283,9 @@ class _RegisterDriverPageState extends State<RegisterDriverPage> {
               AuthTextField(
                 controller: _plateController,
                 label: 'Placa del vehículo',
-                hint: 'ABC123',
+                hint: _selectedVehicleType == AppConstants.vehicleCar
+                    ? 'ABC123'
+                    : 'ABC12D',
                 prefixIcon: Icons.confirmation_number_outlined,
                 maxLength: 6,
                 inputFormatters: [
@@ -283,7 +294,18 @@ class _RegisterDriverPageState extends State<RegisterDriverPage> {
                 ],
                 validator: (v) {
                   if (v == null || v.isEmpty) return 'Requerido';
-                  if (v.length < 5) return 'Placa inválida (mín. 5 caracteres)';
+                  final plate = v.trim().toUpperCase();
+                  if (_selectedVehicleType == AppConstants.vehicleCar) {
+                    // Formato carro: 3 letras + 3 números  (ej: ABC123)
+                    if (!RegExp(r'^[A-Z]{3}[0-9]{3}$').hasMatch(plate)) {
+                      return 'Carro: 3 letras y 3 números (ej: ABC123)';
+                    }
+                  } else {
+                    // Formato moto: 3 letras + 2 números + 1 letra  (ej: ABC12D)
+                    if (!RegExp(r'^[A-Z]{3}[0-9]{2}[A-Z]$').hasMatch(plate)) {
+                      return 'Moto: 3 letras, 2 números y 1 letra (ej: ABC12D)';
+                    }
+                  }
                   return null;
                 },
               ),

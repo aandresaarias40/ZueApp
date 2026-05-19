@@ -53,9 +53,20 @@ class AppConstants {
   static const String vehicleCar = 'car';
   static const String vehicleMoto = 'moto';
 
+  // Tarifas Fusagasugá (COP)
+  static const double minimumFareDistanceKm = 6.0;  // Rutas < 6 km → tarifa fija
+  static const double minimumFare = 8000;            // $8.000 COP tarifa fija mínima
+
+  // Período de prueba para conductores nuevos
+  static const int driverTrialDays = 3;
+  static const String subscriptionStatusTrial = 'trial';
+
+  // Anti-fraude: colección de identidades de conductores
+  static const String driverIdentitiesCollection = 'driver_identities';
+
   // Google Maps
-  static const double defaultLat = 4.7110;  // Bogotá, Colombia
-  static const double defaultLng = -74.0721;
+  static const double defaultLat = 4.3478;  // Fusagasugá, Cundinamarca
+  static const double defaultLng = -74.3649;
   static const double defaultZoom = 14.0;
   static const double nearbyDriverRadius = 5000; // 5 km en metros
 

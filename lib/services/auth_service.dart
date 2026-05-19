@@ -68,7 +68,17 @@ class AuthService {
     }
   }
 
-  // Registro de transportador
+  // ─────────────────────────────────────────────────────────────────────────
+  // Registro de transportador con:
+  //   • Validación anti-fraude (cédula, placa y celular únicos en Firestore)
+  //   • Período de prueba gratuita de 3 días para conductores nuevos
+  //
+  // ORDEN DE OPERACIONES:
+  //   1. Crear cuenta Firebase Auth → el usuario queda autenticado
+  //   2. Verificar duplicados en driver_identities (ya con request.auth válido)
+  //   3. Si hay duplicado → borrar la cuenta Auth recién creada y lanzar error
+  //   4. Si pasa → batch write atómico de user + driver + identidad
+  // ─────────────────────────────────────────────────────────────────────────
   Future<DriverModel> registerDriver({
     required String name,
     required String email,
@@ -81,59 +91,135 @@ class AuthService {
     required String licenseNumber,
     required String subscriptionPlan,
   }) async {
+    final normalizedCedula = licenseNumber.trim();
+    final normalizedPlate  = vehiclePlate.trim().toUpperCase();
+    final normalizedPhone  = phone.trim();
+
+    // ── 1. Crear cuenta en Firebase Auth ──────────────────────────────────
+    //    Primero creamos la cuenta para que las reglas de Firestore reciban
+    //    un request.auth válido en los pasos siguientes.
+    late UserCredential credential;
     try {
-      final credential = await _auth.createUserWithEmailAndPassword(
+      credential = await _auth.createUserWithEmailAndPassword(
         email: email.trim(),
         password: password,
       );
-      final uid = credential.user!.uid;
+    } on FirebaseAuthException catch (e) {
+      throw _mapFirebaseAuthException(e);
+    }
 
-      // Crear usuario base
+    final uid = credential.user!;
+
+    // ── 2. Verificación anti-fraude (ya autenticado) ───────────────────────
+    final identitiesRef =
+        _firestore.collection(AppConstants.driverIdentitiesCollection);
+
+    try {
+      // Verificar cédula (ID del documento = cédula → O(1))
+      final cedulaDoc = await identitiesRef.doc(normalizedCedula).get();
+      if (cedulaDoc.exists) {
+        throw Exception(
+          'Ya existe un conductor registrado con esa cédula. '
+          'Si olvidaste tu contraseña, usa la opción de recuperación.',
+        );
+      }
+
+      // Verificar placa
+      final plateQuery = await identitiesRef
+          .where('plate', isEqualTo: normalizedPlate)
+          .limit(1)
+          .get();
+      if (plateQuery.docs.isNotEmpty) {
+        throw Exception(
+          'Ya existe un conductor registrado con esa placa ($normalizedPlate). '
+          'Verifica los datos e intenta de nuevo.',
+        );
+      }
+
+      // Verificar celular
+      final phoneQuery = await identitiesRef
+          .where('phone', isEqualTo: normalizedPhone)
+          .limit(1)
+          .get();
+      if (phoneQuery.docs.isNotEmpty) {
+        throw Exception(
+          'Ya existe un conductor registrado con ese número de celular. '
+          'Si olvidaste tu contraseña, usa la opción de recuperación.',
+        );
+      }
+    } catch (e) {
+      // ── 3. Duplicado encontrado → limpiar la cuenta Auth y relanzar ───────
+      await uid.delete();
+      rethrow;
+    }
+
+    // ── 4. Todo OK → batch write atómico ─────────────────────────────────
+    try {
+      final now         = DateTime.now();
+      final trialExpiry = now.add(
+        const Duration(days: AppConstants.driverTrialDays),
+      );
+
       final user = UserModel(
-        id: uid,
+        id: uid.uid,
         name: name.trim(),
         email: email.trim(),
-        phone: phone.trim(),
+        phone: normalizedPhone,
         role: AppConstants.roleDriver,
         isActive: true,
-        createdAt: DateTime.now(),
+        createdAt: now,
       );
 
-      // Crear perfil de conductor
       final driver = DriverModel(
-        id: uid,
-        userId: uid,
+        id: uid.uid,
+        userId: uid.uid,
         name: name.trim(),
         email: email.trim(),
-        phone: phone.trim(),
+        phone: normalizedPhone,
         vehicleType: vehicleType,
-        vehiclePlate: vehiclePlate.toUpperCase(),
+        vehiclePlate: normalizedPlate,
         vehicleModel: vehicleModel,
         vehicleColor: vehicleColor,
-        licenseNumber: licenseNumber,
+        licenseNumber: normalizedCedula,
         status: AppConstants.driverStatusInactive,
         subscriptionPlan: subscriptionPlan,
-        subscriptionStatus: 'pending', // Requiere pago
-        createdAt: DateTime.now(),
+        subscriptionStatus: AppConstants.subscriptionStatusTrial,
+        trialExpiresAt: trialExpiry,
+        createdAt: now,
       );
 
-      // Batch write para atomicidad
       final batch = _firestore.batch();
+
       batch.set(
-        _firestore.collection(AppConstants.usersCollection).doc(uid),
+        _firestore.collection(AppConstants.usersCollection).doc(uid.uid),
         user.toFirestore(),
       );
       batch.set(
-        _firestore.collection(AppConstants.driversCollection).doc(uid),
+        _firestore.collection(AppConstants.driversCollection).doc(uid.uid),
         driver.toFirestore(),
       );
-      await batch.commit();
+      batch.set(
+        identitiesRef.doc(normalizedCedula),
+        {
+          'cedula'   : normalizedCedula,
+          'plate'    : normalizedPlate,
+          'phone'    : normalizedPhone,
+          'email'    : email.trim(),
+          'driverId' : uid.uid,
+          'createdAt': Timestamp.fromDate(now),
+        },
+      );
 
-      await credential.user!.updateDisplayName(name);
+      await batch.commit();
+      await uid.updateDisplayName(name);
 
       return driver;
     } on FirebaseAuthException catch (e) {
+      await uid.delete();
       throw _mapFirebaseAuthException(e);
+    } catch (e) {
+      await uid.delete();
+      rethrow;
     }
   }
 

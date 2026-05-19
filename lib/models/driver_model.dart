@@ -20,8 +20,9 @@ class DriverModel {
   final int totalTrips;
   final int ratedTrips; // viajes con calificación acumulada
   final String subscriptionPlan; // weekly, monthly
-  final String subscriptionStatus; // active, expired, pending
+  final String subscriptionStatus; // active, expired, pending, trial
   final DateTime? subscriptionExpiry;
+  final DateTime? trialExpiresAt;  // Fecha de vencimiento del período de prueba
   final DateTime createdAt;
   final DateTime? updatedAt;
 
@@ -47,11 +48,27 @@ class DriverModel {
     required this.subscriptionPlan,
     this.subscriptionStatus = 'pending',
     this.subscriptionExpiry,
+    this.trialExpiresAt,
     required this.createdAt,
     this.updatedAt,
   });
 
+  /// Verdadero si el conductor está dentro de su período de prueba gratuita.
+  bool get isOnTrial {
+    if (subscriptionStatus != 'trial') return false;
+    if (trialExpiresAt == null) return false;
+    return trialExpiresAt!.isAfter(DateTime.now());
+  }
+
+  /// Días restantes del período de prueba (0 si ya venció o no aplica).
+  int get trialDaysRemaining {
+    if (!isOnTrial) return 0;
+    return trialExpiresAt!.difference(DateTime.now()).inDays + 1;
+  }
+
   bool get isSubscriptionActive {
+    // El período de prueba también habilita al conductor
+    if (isOnTrial) return true;
     if (subscriptionStatus != 'active') return false;
     if (subscriptionExpiry == null) return false;
     return subscriptionExpiry!.isAfter(DateTime.now());
@@ -67,6 +84,7 @@ class DriverModel {
       hasRating ? rating.toStringAsFixed(1) : 'Sin calif.';
 
   int get daysUntilExpiry {
+    if (isOnTrial) return trialDaysRemaining;          // Trial → días restantes del trial
     if (subscriptionExpiry == null) return 0;
     return subscriptionExpiry!.difference(DateTime.now()).inDays;
   }
@@ -95,6 +113,7 @@ class DriverModel {
       subscriptionPlan: data['subscriptionPlan'] ?? 'weekly',
       subscriptionStatus: data['subscriptionStatus'] ?? 'pending',
       subscriptionExpiry: (data['subscriptionExpiry'] as Timestamp?)?.toDate(),
+      trialExpiresAt: (data['trialExpiresAt'] as Timestamp?)?.toDate(),
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
     );
@@ -124,6 +143,9 @@ class DriverModel {
       'subscriptionExpiry': subscriptionExpiry != null
           ? Timestamp.fromDate(subscriptionExpiry!)
           : null,
+      'trialExpiresAt': trialExpiresAt != null
+          ? Timestamp.fromDate(trialExpiresAt!)
+          : null,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': updatedAt != null ? Timestamp.fromDate(updatedAt!) : null,
     };
@@ -140,6 +162,7 @@ class DriverModel {
     int? ratedTrips,
     String? subscriptionStatus,
     DateTime? subscriptionExpiry,
+    DateTime? trialExpiresAt,
     DateTime? updatedAt,
   }) {
     return DriverModel(
@@ -164,6 +187,7 @@ class DriverModel {
       subscriptionPlan: subscriptionPlan,
       subscriptionStatus: subscriptionStatus ?? this.subscriptionStatus,
       subscriptionExpiry: subscriptionExpiry ?? this.subscriptionExpiry,
+      trialExpiresAt: trialExpiresAt ?? this.trialExpiresAt,
       createdAt: createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

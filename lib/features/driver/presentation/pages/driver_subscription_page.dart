@@ -111,42 +111,22 @@ class _DriverSubscriptionPageState extends State<DriverSubscriptionPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Estado de suscripción actual
-                if (driver != null && driver.isSubscriptionActive)
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    margin: const EdgeInsets.only(bottom: 24),
-                    decoration: BoxDecoration(
-                      color: AppTheme.successColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                          color: AppTheme.successColor.withOpacity(0.3)),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.check_circle,
-                            color: AppTheme.successColor),
-                        const SizedBox(width: 12),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Suscripción activa',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                                color: AppTheme.successColor,
-                              ),
-                            ),
-                            Text(
-                              'Vence en ${driver.daysUntilExpiry} día(s)',
-                              style: const TextStyle(
-                                  fontSize: 13,
-                                  color: AppTheme.successColor),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
+                if (driver != null && driver.isOnTrial)
+                  _StatusCard(
+                    color: AppTheme.primaryColor,
+                    icon: Icons.redeem_outlined,
+                    title: '¡Período de prueba gratuita!',
+                    subtitle: 'Tienes ${driver.trialDaysRemaining} día(s) '
+                        'gratis para explorar Zue sin costo.',
+                  )
+                else if (driver != null && driver.isSubscriptionActive)
+                  _StatusCard(
+                    color: AppTheme.successColor,
+                    icon: Icons.check_circle,
+                    title: 'Suscripción activa',
+                    subtitle: driver.subscriptionExpiry != null
+                        ? 'Vence en ${driver.daysUntilExpiry} día(s)'
+                        : 'Plan activo',
                   ),
 
                 const Text(
@@ -450,6 +430,58 @@ class _SummaryRow extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ── Widget de estado de suscripción/trial ─────────────────────────────────────
+
+class _StatusCard extends StatelessWidget {
+  final Color color;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  const _StatusCard({
+    required this.color,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 24),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                ),
+              ),
+              Text(
+                subtitle,
+                style: TextStyle(fontSize: 13, color: color),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

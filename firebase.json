@@ -1,1 +1,37 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"zue-app","appId":"1:288448813875:android:d99d433289074398b6fc46","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"zue-app","configurations":{"android":"1:288448813875:android:d99d433289074398b6fc46","ios":"1:288448813875:ios:7101bef87be184eeb6fc46","macos":"1:288448813875:ios:7101bef87be184eeb6fc46","web":"1:288448813875:web:6cb79c4e15c8673cb6fc46","windows":"1:288448813875:web:a6d9af973580048bb6fc46"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "zue-app",
+          "appId": "1:288448813875:android:d99d433289074398b6fc46",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "zue-app",
+          "configurations": {
+            "android": "1:288448813875:android:d99d433289074398b6fc46",
+            "ios": "1:288448813875:ios:7101bef87be184eeb6fc46",
+            "macos": "1:288448813875:ios:7101bef87be184eeb6fc46",
+            "web": "1:288448813875:web:6cb79c4e15c8673cb6fc46",
+            "windows": "1:288448813875:web:a6d9af973580048bb6fc46"
+          }
+        }
+      }
+    }
+  },
+  "emulators": {
+    "auth": {
+      "port": 9099
+    },
+    "firestore": {
+      "port": 8080
+    },
+    "ui": {
+      "enabled": true
+    },
+    "singleProjectMode": true
+  }
+}
