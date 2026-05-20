@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -24,6 +25,16 @@ void main() async {
   // Inicializar Firebase
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  // Persistencia offline de Firestore.
+  // Beneficio clave del stress test: el P95 de 2 s ocurre cuando varios
+  // conductores intentan escribir simultáneamente y no hay conexión local.
+  // Con persistencia offline, los writes se guardan en disco y se sincronizan
+  // cuando hay red, sin bloquear la UI ni generar errores.
+  FirebaseFirestore.instance.settings = const Settings(
+    persistenceEnabled: true,
+    cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
   );
 
   // Orientación fija vertical

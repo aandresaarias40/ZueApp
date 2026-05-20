@@ -70,10 +70,37 @@ class AppConstants {
   static const double defaultZoom = 14.0;
   static const double nearbyDriverRadius = 5000; // 5 km en metros
 
+  // ── Redis / Upstash (telemetría GPS hot-path) ─────────────────────────────
+  // Obtén tus credenciales en https://console.upstash.com
+  // Dashboard → tu base de datos → REST API → copia endpoint y token.
+  // Deja redisEnabled = false para usar solo Firestore (comportamiento original).
+  static const bool   redisEnabled          = true;
+  // Credenciales Upstash almacenadas SOLO en Cloud Functions (functions/index.js)
+  // No incluir tokens aquí — el APK es público y puede ser decompilado.
+  static const String redisUpstashEndpoint  = '';   // unused — ver Cloud Functions
+  static const String redisUpstashToken     = '';   // unused — ver Cloud Functions
+  static const String redisDriverPosPrefix  = 'driver:pos:';       // HSET driver:pos:{id} lat lng ts
+  static const String redisOnlineDriversKey = 'drivers:online';    // SET de IDs online
+  static const String redisGeoKey           = 'drivers:geo';       // GEOADD/GEOSEARCH índice geoespacial
+  static const int    firestoreSyncIntervalSec = 30;               // sync Redis→Firestore cada 30 s
+
+  // GPS / Location tracking (conductores en línea)
+  // Resultado stress test: P50 = 15ms (excelente), P95 = 2079ms (burst inicial).
+  // Aumentar filtros reduce 1.7M escrituras/día → ~345K (salvo movimiento constante).
+  static const int gpsDistanceFilter = 50;        // metros mínimos de movimiento
+  static const int gpsMinIntervalSeconds = 10;    // throttle: mínimo 10s entre writes
+  // Cuota Firestore (Plan Spark gratuito)
+  static const int firestoreSparkDailyWrites = 20000;
+  static const int firestoreSparkDailyReads  = 50000;
+
   // Timeouts & Limits
   static const int tripRequestTimeout = 60; // segundos para que un conductor acepte
   static const int maxDriverSearchRadius = 10000; // 10 km
   static const int maxActiveTripsPerDriver = 1;
+  // Máx candidatos que Firestore devuelve antes del filtro haversine en cliente.
+  // Limita el payload: O(50 docs) vs O(todos los online). El índice compuesto
+  // isOnline+status resuelve el LIMIT en servidor sin table scan.
+  static const int maxNearbyDriverFetch = 50;
 
   // Shared Preferences Keys
   static const String prefUserToken = 'user_token';

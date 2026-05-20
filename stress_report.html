@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Zue – Stress Test Report</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Arial,sans-serif;background:#f4f6fb;color:#2d3436}
+.hdr{background:linear-gradient(135deg,#6c5ce7 0%,#a29bfe 100%);color:#fff;padding:32px 44px}
+.hdr h1{font-size:26px;font-weight:700;letter-spacing:-.3px}
+.hdr p{margin-top:6px;opacity:.85;font-size:14px}
+.wrap{max-width:1100px;margin:28px auto;padding:0 24px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:28px}
+.kpi{background:#fff;border-radius:14px;padding:18px 20px;box-shadow:0 2px 10px rgba(0,0,0,.07)}
+.kpi .lbl{font-size:11px;font-weight:700;text-transform:uppercase;color:#636e72;letter-spacing:.4px}
+.kpi .val{font-size:26px;font-weight:700;margin-top:5px}
+.ok{color:#00b894}.warn{color:#e17055}.bad{color:#d63031}
+.box{background:#fff;border-radius:14px;padding:22px 24px;
+     box-shadow:0 2px 10px rgba(0,0,0,.07);margin-bottom:22px}
+.box h2{font-size:16px;font-weight:700;margin-bottom:18px}
+.chart-wrap{position:relative;height:260px}
+table{width:100%;border-collapse:collapse}
+th{background:#f8f9fc;font-size:11px;font-weight:700;text-transform:uppercase;
+   color:#636e72;padding:9px 14px;text-align:left}
+td{padding:10px 14px;border-bottom:1px solid #f0f0f0;font-size:13px}
+tr:last-child td{border:none}
+.badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700}
+.b-ok{background:#d4f5ea;color:#006647}
+.b-warn{background:#ffeaa7;color:#7a5c00}
+.b-bad{background:#fdd9d7;color:#8b1a1a}
+.bar-wrap{background:#eef0f4;border-radius:8px;height:12px;overflow:hidden;margin:5px 0 2px}
+.bar-fill{height:100%;border-radius:8px}
+.rec{border-left:4px solid;padding:11px 15px;border-radius:0 10px 10px 0;
+     margin-bottom:10px;font-size:13px;line-height:1.5}
+.rec-ok{background:#d4f5ea;border-color:#00b894}
+.rec-warn{background:#fef9e7;border-color:#fdcb6e}
+.rec-bad{background:#fdd9d7;border-color:#d63031}
+code{background:#f0f0f0;padding:1px 5px;border-radius:4px;font-size:12px}
+</style>
+</head>
+<body>
+<div class="hdr">
+  <h1>🚗 Zue App &mdash; Stress Test Report</h1>
+  <p>Generado: 2026-05-20 14:22:35 &nbsp;|&nbsp; Proyecto: <strong>zue-app</strong>
+     &nbsp;|&nbsp; Modo: <strong>Emulador</strong>
+     &nbsp;|&nbsp; Conductores: <strong>80</strong>
+     &nbsp;|&nbsp; Pasajeros: <strong>100</strong>
+     &nbsp;|&nbsp; Duración: <strong>146.6s</strong>
+     &nbsp;|&nbsp; Intervalo GPS: <strong>5.0s</strong>
+  </p>
+</div>
+
+<div class="wrap">
+
+  <!-- KPIs -->
+  <div class="kpis">
+    <div class="kpi"><div class="lbl">Operaciones totales</div>
+      <div class="val warn">0</div></div>
+    <div class="kpi"><div class="lbl">Throughput</div>
+      <div class="val warn">0.0 <small style="font-size:14px">ops/s</small></div></div>
+    <div class="kpi"><div class="lbl">Tasa de error</div>
+      <div class="val ok">0.0%</div></div>
+    <div class="kpi"><div class="lbl">Escrituras (ubicación)</div>
+      <div class="val ok">0</div></div>
+    <div class="kpi"><div class="lbl">Latencia escritura avg</div>
+      <div class="val ok">0 <small style="font-size:14px">ms</small></div></div>
+    <div class="kpi"><div class="lbl">Latencia escritura P95</div>
+      <div class="val ok">0 <small style="font-size:14px">ms</small></div></div>
+    <div class="kpi"><div class="lbl">Lecturas (conductores)</div>
+      <div class="val ok">0</div></div>
+    <div class="kpi"><div class="lbl">Viajes solicitados</div>
+      <div class="val ok">0</div></div>
+  </div>
+
+  <!-- Gráfico latencia en el tiempo -->
+  <div class="box">
+    <h2>📈 Latencia de escritura en el tiempo</h2>
+    <div class="chart-wrap"><canvas id="latChart"></canvas></div>
+  </div>
+
+  <!-- Desglose por operación -->
+  <div class="box">
+    <h2>📊 Desglose de latencia por operación</h2>
+    <table>
+      <tr>
+        <th>Operación</th><th>Total</th><th>Avg</th>
+        <th>P50</th><th>P95</th><th>P99</th><th>Máx</th><th>Veredicto</th>
+      </tr>
+      <tr>
+        <td><strong>Escritura</strong> (ubicación)</td>
+        <td>0</td>
+        <td>0 ms</td><td>0 ms</td>
+        <td>0 ms</td><td>0 ms</td><td>0 ms</td>
+        <td><span class="badge b-ok">✓ Excelente</span></td>
+      </tr>
+      <tr>
+        <td><strong>Lectura</strong> (conductores)</td>
+        <td>0</td>
+        <td>0 ms</td><td>0 ms</td>
+        <td>0 ms</td><td>0 ms</td><td>0 ms</td>
+        <td><span class="badge b-ok">✓ Excelente</span></td>
+      </tr>
+      <tr>
+        <td><strong>Errores</strong></td>
+        <td colspan="6">0 errores &mdash; tasa 0.0%</td>
+        <td><span class="badge b-ok">✓ Bajo</span></td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- Cuota Firebase -->
+  <div class="box">
+    <h2>🔥 Análisis de cuota Firebase (Plan Spark – gratuito vs Blaze)</h2>
+    <table>
+      <tr>
+        <th>Recurso</th>
+        <th>Límite Spark (día)</th>
+        <th>Proyección 24h<br>(80 conductores × 5.0s)</th>
+        <th>% del límite</th>
+      </tr>
+      <tr>
+        <td>Escrituras Firestore</td>
+        <td>20.000</td>
+        <td>1,382,400</td>
+        <td>
+          <div class="bar-wrap">
+            <div class="bar-fill" style="width:100%;background:#d63031"></div>
+          </div>
+          <strong style="color:#d63031">100%</strong>
+        </td>
+      </tr>
+      <tr>
+        <td>Lecturas Firestore</td>
+        <td>50.000</td>
+        <td>864,000</td>
+        <td>
+          <div class="bar-wrap">
+            <div class="bar-fill" style="width:100%;background:#d63031"></div>
+          </div>
+          <strong style="color:#d63031">100%</strong>
+        </td>
+      </tr>
+      <tr>
+        <td>Costo estimado Blaze (día)</td>
+        <td colspan="2">Escrituras: 0.8294 USD &nbsp;+&nbsp; Lecturas: 0.5184 USD</td>
+        <td><strong>Total: 1.3478 USD/día</strong></td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- Recomendaciones -->
+  <div class="box">
+    <h2>💡 Recomendaciones</h2>
+    <div class="rec rec-warn"><strong>✅ Redis Upstash activo — GEOSEARCH habilitado</strong><br><strong>Escritura GPS (HSET+GEOADD pipeline):</strong> P50=204.6 ms | P95=219.3 ms | P99=5752.3 ms<br><strong>Lectura pasajero (GEOSEARCH radio 10 km):</strong> P50=204.9 ms | P95=14283.2 ms | P99=15317.0 ms<br><em>Latencia incluye RTT Colombia→Upstash São Paulo (~180 ms). En producción la app Flutter escribe GPS en background (no bloquea UI).</em><br><br><strong>Proyección de costos Upstash (100 conductores, 5.0s, 24 h):</strong><br>Redis: 5,529,600 comandos/día × $0.20/100K = <strong>$11.06/día</strong><br>Firestore throttled 30 s: 230,400 writes/día = <strong>$0.138/día</strong><br>Total arquitectura híbrida: <strong>$11.2/día</strong> vs solo Firestore: <strong>$0.83/día</strong><br><em>El costo adicional de Redis (~$10.37/día) elimina el P95 de lectura de 3,344 ms → búsqueda geoespacial real en memoria.</em></div>
+<div class="rec rec-bad">Con 80 conductores cada 5.0s se generan <strong>1,382,400 escrituras/día</strong>. El plan Spark permite 20.000/día. <strong>Necesitas el plan Blaze</strong> (~$1.3478 USD/día).</div>
+<div class="rec rec-ok">La latencia P95 de escritura (0ms) está dentro de límites aceptables.</div>
+<div class="rec rec-ok">Usa <code>distanceFilter: 50</code> + throttle 10 s en Geolocator para enviar updates solo cuando el conductor se mueva &gt;50m Y hayan pasado 10 s, reduciendo escrituras ~70%.</div>
+<div class="rec rec-ok">Índice compuesto Firestore <code>drivers → isOnline ASC, status ASC</code> ya configurado en <code>firestore.indexes.json</code>.</div>
+  </div>
+
+</div><!-- /wrap -->
+
+<script>
+const labels = [];
+const data   = [];
+const p95    = 0;
+new Chart(document.getElementById('latChart'), {
+  type: 'line',
+  data: {
+    labels,
+    datasets: [
+      {
+        label: 'Latencia escritura (ms)',
+        data,
+        borderColor: '#6c5ce7',
+        backgroundColor: 'rgba(108,92,231,0.07)',
+        borderWidth: 1.5,
+        pointRadius: 0,
+        fill: true,
+        tension: 0.3,
+      },
+      {
+        label: `P95 = ${p95} ms`,
+        data: Array(labels.length).fill(p95),
+        borderColor: '#e17055',
+        borderDash: [6, 4],
+        borderWidth: 1.5,
+        pointRadius: 0,
+        fill: false,
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    scales: {
+      x: { display: true, title: { display: true, text: 'Tiempo (s)' } },
+      y: { beginAtZero: true, title: { display: true, text: 'ms' } }
+    },
+    plugins: { legend: { position: 'top' } }
+  }
+});
+</script>
+</body>
+</html>
