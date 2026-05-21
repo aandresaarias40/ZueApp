@@ -40,8 +40,8 @@ class AppConstants {
   static const String planMonthly = 'monthly';
 
   // Subscription Prices (COP)
-  static const double weeklyPrice = 35000;  // $35.000 COP / semana
-  static const double monthlyPrice = 120000; // $120.000 COP / mes
+  static const double weeklyPrice = 40000;  // $40.000 COP / semana
+  static const double monthlyPrice = 140000; // $140.000 COP / mes
 
   // Payment
   static const String paymentStatusPending = 'pending';

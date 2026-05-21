@@ -1,11 +1,11 @@
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:dio/dio.dart';
 import 'package:uuid/uuid.dart';
 import '../models/subscription_model.dart';
 import '../models/driver_model.dart';
 import '../core/constants/app_constants.dart';
+
 
 /// Modelo de banco PSE
 class PseBankModel {
@@ -56,73 +56,95 @@ class PaymentService {
   }
 
   /// Iniciar pago PSE para suscripción del transportador.
-  ///
-  /// ORDEN DE OPERACIONES (importante):
-  ///   1. Llamar Cloud Function → obtiene transactionId + redirectUrl
-  ///      (la firma de integridad Wompi se calcula en el servidor, nunca en el APK)
-  ///   2. Un único CREATE en Firestore con todos los campos ya conocidos
-  ///
-  /// Si la CF falla → excepción llega a la UI, sin escrituras en Firestore.
-  /// No hay UPDATEs desde el cliente → cero problemas de permisos.
+  /// Requiere [financialInstitutionCode] obtenido de [getPseBanks()].
+  /// Retorna la URL de redirección al banco.
+/// Iniciar pago PSE para suscripción del transportador.
   Future<Map<String, dynamic>> initiatePSEPayment({
     required DriverModel driver,
-    required String plan,
+    required String plan, // weekly, monthly
     required String financialInstitutionCode,
   }) async {
     final double amount = plan == AppConstants.planWeekly
         ? AppConstants.weeklyPrice
         : AppConstants.monthlyPrice;
-    final int amountInCents = (amount * 100).toInt();
 
+    // Generar referencia única
     final reference =
         'ZUE-${driver.id.substring(0, 6).toUpperCase()}-${_uuid.v4().substring(0, 8).toUpperCase()}';
 
-    // ── Paso 1: Cloud Function crea la transacción en Wompi ─────────────────
-    final idToken = await FirebaseAuth.instance.currentUser?.getIdToken();
-    if (idToken == null) throw Exception('No autenticado');
+    try {
+      // 1. PRIMERO obtenemos el token y creamos la transacción en Wompi
+      final acceptanceToken = await _getAcceptanceToken();
 
-    final cfResponse = await _dio.post(
-      AppConstants.cfCreatePSETransaction,
-      options: Options(headers: {
-        'Authorization': 'Bearer $idToken',
-        'Content-Type':  'application/json',
-      }),
-      data: jsonEncode({
-        'driverId':                 driver.id,
-        'plan':                     plan,
-        'financialInstitutionCode': financialInstitutionCode,
-        'reference':                reference,
-        'amountInCents':            amountInCents,
-      }),
-    );
+      final response = await _dio.post(
+        '${AppConstants.wompiBaseUrl}/transactions',
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer ${AppConstants.wompiPublicKey}',
+            'Content-Type': 'application/json',
+          },
+        ),
+        data: jsonEncode({
+          'acceptance_token': acceptanceToken,
+          'amount_in_cents': (amount * 100).toInt(),
+          'currency': 'COP',
+          'customer_email': driver.email,
+          'payment_method': {
+            'type': 'PSE',
+            'user_type': 0,
+            'user_legal_id_type': 'CC',
+            'user_legal_id': driver.cedula,
+            'financial_institution_code': financialInstitutionCode,
+            'payment_description':
+                'Suscripción Zue - ${plan == AppConstants.planWeekly ? "Semanal" : "Mensual"}',
+          },
+          'reference': reference,
+          'redirect_url': AppConstants.wompiRedirectUrl,
+          'customer_data': {
+            'phone_number': driver.phone,
+            'full_name': driver.name,
+          },
+        }),
+      );
 
-    final transactionId = cfResponse.data['transactionId'] as String;
-    // redirectUrl es null en sandbox (limitación Wompi: ACH Colombia no tiene sandbox)
-    final redirectUrl   = cfResponse.data['redirectUrl']   as String?;
+      final transactionId = response.data['data']['id'] as String;
+      final redirectUrl =
+          response.data['data']['payment_method_info']['async_payment_url']
+              as String;
 
-    // ── Paso 2: Único CREATE en Firestore con todos los datos ────────────────
-    // wompiTransactionId ya está disponible → no se necesita UPDATE posterior.
-    final paymentDoc = await _payments.add({
-      'driverId':           driver.id,
-      'driverName':         driver.name,
-      'subscriptionId':     '',
-      'amount':             amount,
-      'currency':           'COP',
-      'paymentMethod':      'PSE',
-      'status':             AppConstants.paymentStatusPending,
-      'referenceId':        reference,
-      'plan':               plan,
-      'wompiTransactionId': transactionId,
-      'createdAt':          FieldValue.serverTimestamp(),
-    });
+      // 2. DESPUÉS de que Wompi responde con éxito, creamos el documento en Firestore
+      // (Así evitamos hacer un .update() que bloquean las reglas)
+      final paymentDoc = await _payments.add({
+        'driverId': driver.id,
+        'driverName': driver.name,
+        'subscriptionId': '',
+        'amount': amount,
+        'currency': 'COP',
+        'paymentMethod': 'PSE',
+        'status': AppConstants.paymentStatusPending,
+        'referenceId': reference,
+        'plan': plan,
+        'wompiTransactionId': transactionId, // Guardado directamente aquí
+        'createdAt': FieldValue.serverTimestamp(),
+      });
 
-    return {
-      'paymentId':     paymentDoc.id,
-      'transactionId': transactionId,
-      'redirectUrl':   redirectUrl,
-      'reference':     reference,
-      'amount':        amount,
-    };
+      return {
+        'paymentId': paymentDoc.id,
+        'transactionId': transactionId,
+        'redirectUrl': redirectUrl,
+        'reference': reference,
+        'amount': amount,
+      };
+    } catch (e) {
+      // Agregar esta validación para ver la respuesta detallada de Wompi
+      if (e is DioException) {
+        print('====== ERROR DE VALIDACIÓN WOMPI ======');
+        print('Status: ${e.response?.statusCode}');
+        print('Error Data: ${e.response?.data}');
+        print('=======================================');
+      }
+      rethrow;
+    }
   }
   /// Verificar estado del pago en Wompi
   Future<String> checkPaymentStatus(String transactionId) async {
@@ -236,6 +258,14 @@ class PaymentService {
     return query.snapshots().map(
           (s) => s.docs.map((doc) => PaymentModel.fromFirestore(doc)).toList(),
         );
+  }
+
+  /// Obtener token de aceptación de Wompi (requerido para crear transacciones)
+  Future<String> _getAcceptanceToken() async {
+    final response = await _dio.get(
+      '${AppConstants.wompiBaseUrl}/merchants/${AppConstants.wompiPublicKey}',
+    );
+    return response.data['data']['presigned_acceptance']['acceptance_token'];
   }
 
   /// Obtener resumen de ingresos para el admin
