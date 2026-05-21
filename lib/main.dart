@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
+import 'package:go_router/go_router.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/bloc/auth_bloc.dart';
@@ -54,8 +55,24 @@ void main() async {
   runApp(const ZueApp());
 }
 
-class ZueApp extends StatelessWidget {
+class ZueApp extends StatefulWidget {
   const ZueApp({super.key});
+
+  @override
+  State<ZueApp> createState() => _ZueAppState();
+}
+
+class _ZueAppState extends State<ZueApp> {
+  // Router y notificador creados UNA sola vez — no se destruyen en cada cambio
+  // de estado de auth. Esto preserva el ScaffoldMessenger y sus snackbars.
+  final _authNotifier = AuthRouterNotifier();
+  late final GoRouter _router = AppRouter.createRouter(_authNotifier);
+
+  @override
+  void dispose() {
+    _authNotifier.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -83,17 +100,18 @@ class ZueApp extends StatelessWidget {
             ),
           ),
         ],
-        child: BlocBuilder<AuthBloc, AuthState>(
-          builder: (context, state) {
-            return MaterialApp.router(
-              title: 'Zue',
-              debugShowCheckedModeBanner: false,
-              theme: AppTheme.lightTheme,
-              darkTheme: AppTheme.darkTheme,
-              themeMode: ThemeMode.light,
-              routerConfig: AppRouter.router(state),
-            );
-          },
+        // BlocListener (no BlocBuilder) para que MaterialApp.router no se
+        // recree en cada estado de auth y el ScaffoldMessenger sobreviva.
+        child: BlocListener<AuthBloc, AuthState>(
+          listener: (context, state) => _authNotifier.update(state),
+          child: MaterialApp.router(
+            title: 'Zue',
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.lightTheme,
+            darkTheme: AppTheme.darkTheme,
+            themeMode: ThemeMode.light,
+            routerConfig: _router,
+          ),
         ),
       ),
     );

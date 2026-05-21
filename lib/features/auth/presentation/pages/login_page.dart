@@ -152,12 +152,19 @@ class _LoginPageState extends State<LoginPage> {
                       },
                     ),
 
-                    // Olvidé contraseña
+                    // Recuperar contraseña — disponible en próxima versión
                     Align(
                       alignment: Alignment.centerRight,
                       child: TextButton(
                         onPressed: () {
-                          // TODO: Navegar a recuperar contraseña
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Recuperación de contraseña disponible próximamente.',
+                              ),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
                         },
                         child: const Text('¿Olvidaste tu contraseña?'),
                       ),

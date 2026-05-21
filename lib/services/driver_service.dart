@@ -47,6 +47,7 @@ class DriverService {
       vehicleModel: '',
       vehicleColor: '',
       licenseNumber: '',
+      cedula: '',
       status: AppConstants.driverStatusInactive,
       isOnline: false,
       subscriptionPlan: AppConstants.planWeekly,

@@ -1,5 +1,6 @@
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../../models/user_model.dart';
 import '../../../services/auth_service.dart';
 import '../data/repositories/auth_repository_impl.dart';
@@ -97,7 +98,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       );
       emit(AuthAuthenticatedState(user: user));
     } catch (e) {
-      emit(AuthErrorState(message: e.toString()));
+      emit(AuthErrorState(message: _authErrorMessage(e)));
       emit(AuthUnauthenticatedState());
     }
   }
@@ -114,9 +115,39 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       );
       emit(AuthAuthenticatedState(user: user));
     } catch (e) {
-      emit(AuthErrorState(message: e.toString()));
+      emit(AuthErrorState(message: _authErrorMessage(e)));
       emit(AuthUnauthenticatedState());
     }
+  }
+
+  /// Traduce errores de FirebaseAuth a mensajes legibles en español.
+  String _authErrorMessage(Object e) {
+    if (e is FirebaseAuthException) {
+      switch (e.code) {
+        case 'wrong-password':
+        case 'invalid-credential':
+          return 'Correo o contraseña incorrectos.';
+        case 'user-not-found':
+          return 'No existe una cuenta con este correo.';
+        case 'invalid-email':
+          return 'El correo electrónico no es válido.';
+        case 'user-disabled':
+          return 'Esta cuenta está desactivada. Contacta soporte.';
+        case 'too-many-requests':
+          return 'Demasiados intentos fallidos. Intenta más tarde.';
+        case 'network-request-failed':
+          return 'Sin conexión. Verifica tu internet.';
+        case 'email-already-in-use':
+          return 'Ya existe una cuenta con este correo.';
+        case 'weak-password':
+          return 'La contraseña es muy débil. Usa al menos 6 caracteres.';
+        case 'operation-not-allowed':
+          return 'Método de inicio de sesión no habilitado.';
+        default:
+          return 'Error de autenticación (${e.code}).';
+      }
+    }
+    return 'Ocurrió un error. Intenta de nuevo.';
   }
 
   Future<void> _onLogout(

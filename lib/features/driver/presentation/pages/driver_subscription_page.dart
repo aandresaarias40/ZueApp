@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -21,9 +22,13 @@ class _DriverSubscriptionPageState extends State<DriverSubscriptionPage> {
   bool _isLoading = false;
   String? _paymentUrl;
   String? _paymentId;
+  String? _transactionId;
+  // true cuando la CF devuelve sandboxMode:true (sin redirectUrl)
+  bool _sandboxWaiting = false;
 
   final PaymentService _paymentService = PaymentService();
 
+  /// Paso 1: mostrar selector de banco y, al confirmar, crear la transacción PSE.
   Future<void> _initiatePayment() async {
     if (!mounted) return;
     final driverState = context.read<DriverBloc>().state;
@@ -31,18 +36,65 @@ class _DriverSubscriptionPageState extends State<DriverSubscriptionPage> {
 
     setState(() => _isLoading = true);
 
+    // Cargar bancos PSE
+    List<PseBankModel> banks;
+    try {
+      banks = await _paymentService.getPseBanks();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No se pudo cargar la lista de bancos: $e'),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    // Mostrar bottom sheet de selección de banco
+    final selectedBank = await showModalBottomSheet<PseBankModel>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => _BankSelectionSheet(banks: banks),
+    );
+
+    if (selectedBank == null || !mounted) return;
+
+    setState(() => _isLoading = true);
+
     try {
       final result = await _paymentService.initiatePSEPayment(
         driver: driverState.driver,
         plan: _selectedPlan,
+        financialInstitutionCode: selectedBank.financialInstitutionCode,
       );
 
       if (!mounted) return;
+
+      final redirectUrl   = result['redirectUrl'] as String?;
+      final paymentId     = result['paymentId']   as String;
+      final transactionId = result['transactionId'] as String;
+
       setState(() {
-        _paymentUrl = result['redirectUrl'];
-        _paymentId = result['paymentId'];
-        _isLoading = false;
+        _paymentUrl      = redirectUrl;
+        _paymentId       = paymentId;
+        _transactionId   = transactionId;
+        _sandboxWaiting  = redirectUrl == null;
+        _isLoading       = false;
       });
+
+      // Sandbox: sin redirect al banco → escuchar Firestore directamente.
+      // El webhook dispara al aprobar la tx desde comercios.wompi.co.
+      if (redirectUrl == null) {
+        _verifyAndConfirmPayment(transactionId);
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
@@ -55,39 +107,103 @@ class _DriverSubscriptionPageState extends State<DriverSubscriptionPage> {
     }
   }
 
+  /// Después de que el WebView captura el redirect de Wompi, esperamos que el
+  /// webhook de Cloud Functions actualice el estado del pago en Firestore.
+  /// El cliente NO escribe nada — solo escucha. El Admin SDK del webhook
+  /// tiene permisos completos y es la fuente de verdad.
+  Future<void> _verifyAndConfirmPayment(String transactionId) async {
+    if (_paymentId == null) return;
+    setState(() => _isLoading = true);
+
+    final completer = Completer<String>();
+
+    // Timeout de 60 s — PSE puede tardar en responder
+    final timer = Timer(const Duration(seconds: 60), () {
+      if (!completer.isCompleted) completer.complete('pending_timeout');
+    });
+
+    // Escuchar el documento de pago en Firestore hasta que el webhook lo actualice
+    final sub = _paymentService.streamPayment(_paymentId!).listen((data) {
+      if (completer.isCompleted || data == null) return;
+      final status = (data['status'] as String? ?? '').toLowerCase();
+      if (status == 'approved' || status == 'declined' || status == 'failed') {
+        completer.complete(status);
+      }
+    });
+
+    final finalStatus = await completer.future;
+    await sub.cancel();
+    timer.cancel();
+
+    if (!mounted) return;
+    setState(() {
+      _isLoading      = false;
+      _sandboxWaiting = false;
+    });
+
+    switch (finalStatus) {
+      case 'approved':
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('¡Pago aprobado! Tu suscripción está activa.'),
+            backgroundColor: AppTheme.successColor,
+          ),
+        );
+        context.go(AppRoutes.driverHome);
+      case 'pending_timeout':
+        // El banco PSE puede confirmar horas después — el webhook lo resolverá
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Pago en proceso. Tu banco confirmará en breve.',
+            ),
+          ),
+        );
+        context.go(AppRoutes.driverHome);
+      default:
+        setState(() => _paymentUrl = null);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('El pago fue rechazado. Intenta de nuevo.'),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Si hay URL de pago, mostrar WebView
+    // Sandbox: transacción creada pero sin redirect al banco
+    if (_sandboxWaiting && _transactionId != null) {
+      return _SandboxPendingView(
+        transactionId: _transactionId!,
+        isLoading: _isLoading,
+        onCancel: () => setState(() {
+          _sandboxWaiting = false;
+          _paymentId      = null;
+          _transactionId  = null;
+        }),
+      );
+    }
+
+    // Si hay URL de pago, mostrar WebView del banco PSE
     if (_paymentUrl != null) {
       return _PSEWebView(
         url: _paymentUrl!,
-        paymentId: _paymentId!,
-        onSuccess: (transactionId) async {
-          await _paymentService.confirmPayment(
-            paymentId: _paymentId!,
-            transactionId: transactionId,
-            status: 'APPROVED',
-          );
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('¡Pago exitoso! Tu cuenta está activa.'),
-                backgroundColor: AppTheme.successColor,
-              ),
-            );
-            context.go(AppRoutes.driverHome);
-          }
+        redirectUrlPattern: AppConstants.wompiRedirectUrl,
+        onRedirectCapture: (uri) {
+          // Wompi redirige con ?id=...&status=...&reference=...
+          final txId = uri.queryParameters['id'] ??
+              uri.queryParameters['transaction_id'] ??
+              _transactionId ??
+              '';
+          _verifyAndConfirmPayment(txId);
         },
-        onFailed: () {
-          setState(() => _paymentUrl = null);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('El pago no fue procesado. Intenta de nuevo.'),
-              backgroundColor: AppTheme.errorColor,
-            ),
-          );
-        },
-        onBack: () => setState(() => _paymentUrl = null),
+        onBack: () => setState(() {
+          _paymentUrl = null;
+          _paymentId = null;
+          _transactionId = null;
+        }),
       );
     }
 
@@ -486,18 +602,19 @@ class _StatusCard extends StatelessWidget {
   }
 }
 
+// ── WebView PSE ───────────────────────────────────────────────────────────────
+// Carga la URL del banco y captura el redirect de Wompi cuando termina el pago.
+
 class _PSEWebView extends StatefulWidget {
   final String url;
-  final String paymentId;
-  final void Function(String transactionId) onSuccess;
-  final VoidCallback onFailed;
+  final String redirectUrlPattern; // dominio a interceptar (e.g. zueapp.com/payment/callback)
+  final void Function(Uri redirectUri) onRedirectCapture;
   final VoidCallback onBack;
 
   const _PSEWebView({
     required this.url,
-    required this.paymentId,
-    required this.onSuccess,
-    required this.onFailed,
+    required this.redirectUrlPattern,
+    required this.onRedirectCapture,
     required this.onBack,
   });
 
@@ -508,6 +625,7 @@ class _PSEWebView extends StatefulWidget {
 class _PSEWebViewState extends State<_PSEWebView> {
   late final WebViewController _controller;
   bool _isLoading = true;
+  bool _captured = false; // evita disparar onRedirectCapture más de una vez
 
   @override
   void initState() {
@@ -515,19 +633,18 @@ class _PSEWebViewState extends State<_PSEWebView> {
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(NavigationDelegate(
-        onPageFinished: (url) => setState(() => _isLoading = false),
+        onPageStarted: (_) {
+          if (mounted) setState(() => _isLoading = true);
+        },
+        onPageFinished: (_) {
+          if (mounted) setState(() => _isLoading = false);
+        },
         onNavigationRequest: (request) {
-          // Manejar callback de pago
-          if (request.url.contains('zue://payment/callback')) {
+          // Interceptar la URL de redirect de Wompi
+          if (!_captured && request.url.contains(widget.redirectUrlPattern)) {
+            _captured = true;
             final uri = Uri.parse(request.url);
-            final status = uri.queryParameters['status'];
-            final transactionId = uri.queryParameters['id'] ?? '';
-
-            if (status == 'APPROVED') {
-              widget.onSuccess(transactionId);
-            } else {
-              widget.onFailed();
-            }
+            widget.onRedirectCapture(uri);
             return NavigationDecision.prevent;
           }
           return NavigationDecision.navigate;
@@ -543,6 +660,7 @@ class _PSEWebViewState extends State<_PSEWebView> {
         title: const Text('Pago PSE'),
         leading: IconButton(
           icon: const Icon(Icons.close),
+          tooltip: 'Cancelar pago',
           onPressed: widget.onBack,
         ),
       ),
@@ -556,11 +674,241 @@ class _PSEWebViewState extends State<_PSEWebView> {
                 children: [
                   CircularProgressIndicator(),
                   SizedBox(height: 16),
-                  Text('Cargando pasarela de pago...'),
+                  Text('Conectando con tu banco...'),
                 ],
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Pantalla de espera sandbox ────────────────────────────────────────────────
+// Wompi PSE sandbox no genera async_payment_url (limitación ACH Colombia).
+// El conductor aprueba manualmente desde comercios.wompi.co y el webhook activa
+// la suscripción en Firestore.
+
+class _SandboxPendingView extends StatelessWidget {
+  final String transactionId;
+  final bool isLoading;
+  final VoidCallback onCancel;
+
+  const _SandboxPendingView({
+    required this.transactionId,
+    required this.isLoading,
+    required this.onCancel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Transacción creada'),
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: onCancel,
+        ),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.account_balance, size: 72, color: AppTheme.primaryColor),
+            const SizedBox(height: 24),
+            const Text(
+              'Transacción PSE creada',
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppTheme.backgroundColor,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                'ID: $transactionId',
+                style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.amber.shade50,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.amber.shade200),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.info_outline, color: Colors.amber.shade700),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Modo Sandbox',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: Colors.amber.shade800,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'En sandbox, Wompi no redirige al banco. Para aprobar este pago:\n\n'
+                    '1. Ve a comercios.wompi.co\n'
+                    '2. Sección Transacciones\n'
+                    '3. Encuentra la transacción con el ID de arriba\n'
+                    '4. Apruébala manualmente\n\n'
+                    'Esta app detectará la aprobación automáticamente.',
+                    style: TextStyle(fontSize: 13, color: Colors.amber.shade900),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 32),
+            if (isLoading) ...[
+              const CircularProgressIndicator(),
+              const SizedBox(height: 12),
+              Text(
+                'Esperando confirmación del pago...',
+                style: TextStyle(color: AppTheme.textSecondary),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Selector de banco PSE ──────────────────────────────────────────────────────
+
+class _BankSelectionSheet extends StatefulWidget {
+  final List<PseBankModel> banks;
+  const _BankSelectionSheet({required this.banks});
+
+  @override
+  State<_BankSelectionSheet> createState() => _BankSelectionSheetState();
+}
+
+class _BankSelectionSheetState extends State<_BankSelectionSheet> {
+  final _searchController = TextEditingController();
+  List<PseBankModel> _filtered = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _filtered = widget.banks;
+    _searchController.addListener(_onSearch);
+  }
+
+  void _onSearch() {
+    final q = _searchController.text.toLowerCase();
+    setState(() {
+      _filtered = widget.banks
+          .where((b) =>
+              b.financialInstitutionName.toLowerCase().contains(q))
+          .toList();
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.75,
+      maxChildSize: 0.92,
+      minChildSize: 0.4,
+      builder: (_, scrollController) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 12),
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppTheme.dividerColor,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Selecciona tu banco',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Elige el banco desde donde harás el débito PSE',
+              style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+            ),
+            const SizedBox(height: 16),
+            // Buscador
+            TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Buscar banco...',
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: AppTheme.dividerColor),
+                ),
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: _filtered.isEmpty
+                  ? const Center(child: Text('No se encontró el banco'))
+                  : ListView.separated(
+                      controller: scrollController,
+                      itemCount: _filtered.length,
+                      separatorBuilder: (_, __) =>
+                          const Divider(height: 1),
+                      itemBuilder: (_, i) {
+                        final bank = _filtered[i];
+                        return ListTile(
+                          contentPadding:
+                              const EdgeInsets.symmetric(vertical: 4),
+                          leading: Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: AppTheme.primaryColor.withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(Icons.account_balance,
+                                color: AppTheme.primaryColor, size: 22),
+                          ),
+                          title: Text(
+                            bank.financialInstitutionName,
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                          trailing: const Icon(Icons.chevron_right,
+                              color: AppTheme.textSecondary),
+                          onTap: () => Navigator.pop(context, bank),
+                        );
+                      },
+                    ),
+            ),
+            const SizedBox(height: 12),
+          ],
+        ),
       ),
     );
   }

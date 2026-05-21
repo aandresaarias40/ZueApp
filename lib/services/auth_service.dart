@@ -88,10 +88,11 @@ class AuthService {
     required String vehiclePlate,
     required String vehicleModel,
     required String vehicleColor,
-    required String licenseNumber,
+    required String cedula,          // Cédula de ciudadanía (para PSE y antifraude)
+    required String licenseNumber,   // Número de licencia de conducción
     required String subscriptionPlan,
   }) async {
-    final normalizedCedula = licenseNumber.trim();
+    final normalizedCedula = cedula.trim();
     final normalizedPlate  = vehiclePlate.trim().toUpperCase();
     final normalizedPhone  = phone.trim();
 
@@ -180,7 +181,8 @@ class AuthService {
         vehiclePlate: normalizedPlate,
         vehicleModel: vehicleModel,
         vehicleColor: vehicleColor,
-        licenseNumber: normalizedCedula,
+        cedula: normalizedCedula,
+        licenseNumber: licenseNumber.trim(),
         status: AppConstants.driverStatusInactive,
         subscriptionPlan: subscriptionPlan,
         subscriptionStatus: AppConstants.subscriptionStatusTrial,

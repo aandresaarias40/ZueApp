@@ -48,14 +48,32 @@ class AppRoutes {
   static const String adminTrips = '/admin/trips';
 }
 
+/// Notificador para GoRouter.
+/// Solo notifica al router cuando el estado de auth requiere redirigir
+/// (AuthAuthenticatedState, AuthUnauthenticatedState, AuthInitialState).
+/// AuthLoadingState y AuthErrorState NO causan redirección — así el
+/// ScaffoldMessenger no se destruye y los snackbars de error se muestran.
+class AuthRouterNotifier extends ChangeNotifier {
+  AuthState _state = AuthInitialState();
+  AuthState get state => _state;
+
+  void update(AuthState newState) {
+    if (newState is AuthLoadingState || newState is AuthErrorState) return;
+    _state = newState;
+    notifyListeners();
+  }
+}
+
 class AppRouter {
-  static GoRouter router(AuthState authState) {
+  static GoRouter createRouter(AuthRouterNotifier notifier) {
     return GoRouter(
       initialLocation: AppRoutes.splash,
+      refreshListenable: notifier,
       redirect: (context, state) {
+        final authState = notifier.state;
         final isLoggedIn = authState is AuthAuthenticatedState;
-        final isLoading = authState is AuthLoadingState || authState is AuthInitialState;
-        final isSplash = state.matchedLocation == AppRoutes.splash;
+        final isLoading  = authState is AuthInitialState;
+        final isSplash   = state.matchedLocation == AppRoutes.splash;
         final isAuthRoute = state.matchedLocation == AppRoutes.login ||
             state.matchedLocation == AppRoutes.registerPassenger ||
             state.matchedLocation == AppRoutes.registerDriver;
@@ -68,9 +86,9 @@ class AppRouter {
           if (isAuthRoute || isSplash) {
             switch (user.role) {
               case 'passenger': return AppRoutes.passengerHome;
-              case 'driver': return AppRoutes.driverHome;
-              case 'admin': return AppRoutes.adminDashboard;
-              default: return AppRoutes.login;
+              case 'driver':    return AppRoutes.driverHome;
+              case 'admin':     return AppRoutes.adminDashboard;
+              default:          return AppRoutes.login;
             }
           }
         }

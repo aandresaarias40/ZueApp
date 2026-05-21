@@ -1,0 +1,89 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+    function isAuth() {
+      return request.auth != null;
+    }
+    function isOwner(uid) {
+      return isAuth() && request.auth.uid == uid;
+    }
+    function isAdmin() {
+      return isAuth() &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // ── Users ─────────────────────────────────────────────────────────────────
+    match /users/{userId} {
+      allow read:  if isOwner(userId) || isAdmin();
+      allow write: if isOwner(userId) || isAdmin();
+    }
+
+    // ── Drivers ───────────────────────────────────────────────────────────────
+    // Lectura abierta a todos los autenticados (pasajeros ven conductores en mapa).
+    // Escritura: el conductor escribe sus propios datos (registro, online/offline,
+    //            actualizar perfil). El webhook (Admin SDK) también puede escribir.
+    match /drivers/{driverId} {
+      allow read:  if isAuth();
+      allow write: if isOwner(driverId) || isAdmin();
+    }
+
+    // ── Trips ─────────────────────────────────────────────────────────────────
+    match /trips/{tripId} {
+      allow read:   if isAuth();
+      allow create: if isAuth();
+      allow update: if isAuth();
+      allow delete: if isAdmin();
+    }
+
+    // ── Payments ──────────────────────────────────────────────────────────────
+    // El conductor crea su propio registro de pago.
+    // Actualización/aprobación: solo webhook via Admin SDK (bypasea reglas).
+    match /payments/{paymentId} {
+      allow read:   if isAuth() && (
+        resource.data.driverId == request.auth.uid || isAdmin()
+      );
+      allow create: if isAuth();   // conductor autenticado crea su pago
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ── Subscriptions ─────────────────────────────────────────────────────────
+    // Creadas/actualizadas SOLO por el webhook (Admin SDK).
+    match /subscriptions/{subId} {
+      allow read:  if isAuth() && (
+        resource.data.driverId == request.auth.uid || isAdmin()
+      );
+      allow write: if isAdmin();
+    }
+
+    // ── Notifications ─────────────────────────────────────────────────────────
+    match /notifications/{notifId} {
+      allow read:  if isAuth() && resource.data.userId == request.auth.uid;
+      allow write: if isAdmin();
+    }
+
+    // ── Admins ────────────────────────────────────────────────────────────────
+    match /admins/{adminId} {
+      allow read, write: if isAdmin();
+    }
+
+    // ── Settings ──────────────────────────────────────────────────────────────
+    match /settings/{doc} {
+      allow read:  if isAuth();
+      allow write: if isAdmin();
+    }
+
+    // ── Driver Identities (anti-fraude) ───────────────────────────────────────
+    // Lectura: conductor autenticado la necesita para verificar duplicados al registrarse.
+    // Escritura: conductor crea su propia identidad al registrarse (create).
+    //            Solo admin puede actualizar o eliminar.
+    match /driver_identities/{identityId} {
+      allow read:   if isAuth();
+      allow create: if isAuth();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+  }
+}

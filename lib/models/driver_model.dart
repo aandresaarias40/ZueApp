@@ -11,7 +11,8 @@ class DriverModel {
   final String vehiclePlate;
   final String vehicleModel;
   final String vehicleColor;
-  final String licenseNumber;
+  final String cedula;         // Número de cédula de ciudadanía (requerido para PSE)
+  final String licenseNumber;  // Número de licencia de conducción
   final String status;         // active, inactive, busy, suspended
   final bool isOnline;
   final double? currentLat;
@@ -37,6 +38,7 @@ class DriverModel {
     required this.vehiclePlate,
     required this.vehicleModel,
     required this.vehicleColor,
+    required this.cedula,
     required this.licenseNumber,
     this.status = 'inactive',
     this.isOnline = false,
@@ -102,6 +104,8 @@ class DriverModel {
       vehiclePlate: data['vehiclePlate'] ?? '',
       vehicleModel: data['vehicleModel'] ?? '',
       vehicleColor: data['vehicleColor'] ?? '',
+      // Backward compat: si 'cedula' no existe, intentar leer de 'licenseNumber'
+      cedula: data['cedula'] ?? data['licenseNumber'] ?? '',
       licenseNumber: data['licenseNumber'] ?? '',
       status: data['status'] ?? 'inactive',
       isOnline: data['isOnline'] ?? false,
@@ -130,6 +134,7 @@ class DriverModel {
       'vehiclePlate': vehiclePlate,
       'vehicleModel': vehicleModel,
       'vehicleColor': vehicleColor,
+      'cedula': cedula,
       'licenseNumber': licenseNumber,
       'status': status,
       'isOnline': isOnline,
@@ -176,6 +181,7 @@ class DriverModel {
       vehiclePlate: vehiclePlate,
       vehicleModel: vehicleModel,
       vehicleColor: vehicleColor,
+      cedula: cedula,
       licenseNumber: licenseNumber,
       status: status ?? this.status,
       isOnline: isOnline ?? this.isOnline,

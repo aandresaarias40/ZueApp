@@ -1,3 +1,13 @@
+# Secretos — NUNCA subir a git
+.env
+.env.local
+functions/.env
+functions/.env.local
+google-services.json
+GoogleService-Info.plist
+**/google-services.json
+**/GoogleService-Info.plist
+
 # Miscellaneous
 *.class
 *.log

@@ -23,6 +23,7 @@ class _RegisterDriverPageState extends State<RegisterDriverPage> {
   final _plateController = TextEditingController();
   final _vehicleModelController = TextEditingController();
   final _vehicleColorController = TextEditingController();
+  final _cedulaController = TextEditingController();
   final _licenseController = TextEditingController();
 
   String _selectedVehicleType = AppConstants.vehicleCar;
@@ -39,6 +40,7 @@ class _RegisterDriverPageState extends State<RegisterDriverPage> {
     _plateController.dispose();
     _vehicleModelController.dispose();
     _vehicleColorController.dispose();
+    _cedulaController.dispose();
     _licenseController.dispose();
     super.dispose();
   }
@@ -57,6 +59,7 @@ class _RegisterDriverPageState extends State<RegisterDriverPage> {
         vehiclePlate: _plateController.text.trim().toUpperCase(),
         vehicleModel: _vehicleModelController.text.trim(),
         vehicleColor: _vehicleColorController.text.trim(),
+        cedula: _cedulaController.text.trim(),
         licenseNumber: _licenseController.text.trim(),
         subscriptionPlan: _selectedPlan,
       );
@@ -193,8 +196,9 @@ class _RegisterDriverPageState extends State<RegisterDriverPage> {
               const SizedBox(height: 12),
 
               AuthTextField(
-                controller: _licenseController,
+                controller: _cedulaController,
                 label: 'Número de cédula',
+                hint: '1234567890',
                 keyboardType: TextInputType.number,
                 prefixIcon: Icons.badge_outlined,
                 maxLength: 11,
@@ -328,6 +332,24 @@ class _RegisterDriverPageState extends State<RegisterDriverPage> {
                 prefixIcon: Icons.color_lens_outlined,
                 validator: (v) =>
                     v == null || v.isEmpty ? 'Requerido' : null,
+              ),
+              const SizedBox(height: 12),
+
+              AuthTextField(
+                controller: _licenseController,
+                label: 'Número de licencia de conducción',
+                hint: 'Ej: 80123456789',
+                keyboardType: TextInputType.text,
+                prefixIcon: Icons.drive_eta_outlined,
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')),
+                  LengthLimitingTextInputFormatter(15),
+                ],
+                validator: (v) {
+                  if (v == null || v.isEmpty) return 'Requerido';
+                  if (v.length < 5) return 'Número de licencia inválido';
+                  return null;
+                },
               ),
 
               const SizedBox(height: 28),

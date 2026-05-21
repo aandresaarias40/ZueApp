@@ -113,10 +113,50 @@ class AppConstants {
   // Pagination
   static const int pageSize = 20;
 
-  // Payment Gateway (Wompi Colombia)
-  static const String wompiPublicKey = 'pub_test_YOUR_WOMPI_KEY'; // Cambiar en producción
-  static const String wompiBaseUrl = 'https://sandbox.wompi.co/v1'; // Sandbox
-  static const String wompiProdUrl = 'https://production.wompi.co/v1';
+  // ── Payment Gateway (Wompi Colombia) ─────────────────────────────────────
+  // SETUP:
+  //   1. Entra a https://dashboard.wompi.co → Desarrolladores → Llaves de API
+  //   2. Copia la llave pública de SANDBOX (empieza con pub_test_) y reemplaza
+  //      wompiSandboxPublicKey abajo.
+  //   3. La llave PRIVADA (prv_test_...) va SOLO en functions/index.js
+  //      como constante WOMPI_PRIVATE_KEY — NUNCA en este archivo.
+  //   4. Para producción: cambia wompiUseSandbox = false y agrega la llave
+  //      de producción en wompiProdPublicKey.
+  //
+  // ⚠️  NUNCA pongas la llave privada aquí — el APK puede ser decompilado.
+
+  static const bool wompiUseSandbox = true; // ← sandbox activo para pruebas
+
+  // Llaves públicas (seguro incluirlas en el APK — solo inician transacciones)
+  static const String wompiSandboxPublicKey =
+      'pub_test_x34zykJEK8CFRGMid8X3iffgPGu961L6';
+  static const String wompiProdPublicKey =
+      'pub_prod_nIeXMtOGEWbZK35uXhF8BJw47yszYMZ5';
+
+  // Selector automático según entorno
+  static String get wompiPublicKey =>
+      wompiUseSandbox ? wompiSandboxPublicKey : wompiProdPublicKey;
+
+  // URLs base de la API
+  static const String wompiSandboxUrl    = 'https://sandbox.wompi.co/v1';
+  static const String wompiProductionUrl = 'https://production.wompi.co/v1';
+  static String get wompiBaseUrl =>
+      wompiUseSandbox ? wompiSandboxUrl : wompiProductionUrl;
+
+  // URL de redirect tras el pago PSE.
+  // El WebView intercepta cualquier navegación hacia este dominio para
+  // capturar los parámetros id, status, reference, etc.
+  // Wompi NO acepta custom schemes (zue://); debe ser HTTPS.
+  // URL de redirect de Wompi. El WebView la intercepta en la app — no necesita
+  // cargar nada real. Usa Firebase Hosting del proyecto zue-app.
+  static const String wompiRedirectUrl =
+      'https://zue-app.web.app/payment/callback';
+
+  // ── Cloud Functions URLs (Cloud Run Gen 2) ───────────────────────────────
+  // Sufijo -avqcfqbgeq es único del proyecto zue-app (ver firebase deploy output).
+  // Formato: https://{functionname}-avqcfqbgeq-uc.a.run.app
+  static const String cfCreatePSETransaction =
+      'https://createpsetransaction-avqcfqbgeq-uc.a.run.app';
 
   // Assets Paths
   static const String logoPath = 'assets/images/logo.png';
