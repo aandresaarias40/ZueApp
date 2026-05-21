@@ -18,7 +18,7 @@ if (keyPropertiesFile.exists()) {
 }
 
 android {
-    namespace = "co.zueapp.app"
+    namespace = "com.example.zue"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -41,7 +41,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "co.zueapp.app"
+        applicationId = "com.example.zue"
         minSdk        = flutter.minSdkVersion
         targetSdk     = flutter.targetSdkVersion
         versionCode   = flutter.versionCode
