@@ -23,6 +23,7 @@ class RequestTripEvent extends TripEvent {
   final String destinationAddress;
   final double? estimatedFare;
   final double? estimatedDistance;
+  final String requestedVehicleType;
 
   RequestTripEvent({
     required this.passengerId,
@@ -35,6 +36,7 @@ class RequestTripEvent extends TripEvent {
     required this.destinationAddress,
     this.estimatedFare,
     this.estimatedDistance,
+    this.requestedVehicleType = AppConstants.vehicleCar,
   });
 }
 
@@ -77,6 +79,17 @@ class CancelTripEvent extends TripEvent {
     this.driverId,
     required this.reason,
   });
+}
+
+class CancelPendingPassengerTripEvent extends TripEvent {
+  final String passengerId;
+  final String reason;
+  CancelPendingPassengerTripEvent({
+    required this.passengerId,
+    this.reason = 'Cancelado al cerrar sesión',
+  });
+  @override
+  List<Object?> get props => [passengerId, reason];
 }
 
 class RateTripEvent extends TripEvent {
@@ -164,6 +177,7 @@ class TripBloc extends Bloc<TripEvent, TripState> {
     on<WatchPassengerActiveTripEvent>(_onWatchPassengerActiveTrip);
     on<WatchPendingTripsEvent>(_onWatchPendingTrips);
     on<CancelTripEvent>(_onCancelTrip);
+    on<CancelPendingPassengerTripEvent>(_onCancelPendingPassengerTrip);
     on<RateTripEvent>(_onRateTrip);
     on<LoadTripHistoryEvent>(_onLoadHistory);
   }
@@ -190,6 +204,7 @@ class TripBloc extends Bloc<TripEvent, TripState> {
         destinationAddress: event.destinationAddress,
         estimatedFare: event.estimatedFare,
         estimatedDistance: event.estimatedDistance,
+        requestedVehicleType: event.requestedVehicleType,
       );
       emit(TripRequestedState(trip: trip));
     } catch (e) {
@@ -267,6 +282,24 @@ class TripBloc extends Bloc<TripEvent, TripState> {
       emit(TripCancelledState());
     } catch (e) {
       emit(TripErrorState(message: e.toString()));
+    }
+  }
+
+  Future<void> _onCancelPendingPassengerTrip(
+      CancelPendingPassengerTripEvent event,
+      Emitter<TripState> emit) async {
+    try {
+      await _tripService.cancelPendingPassengerTrip(
+        passengerId: event.passengerId,
+        reason: event.reason,
+      );
+      // Sólo emitir si el stream no está activo, para no interrumpir
+      // un WatchTripEvent que ya maneja el estado de cancelación.
+      if (state is! TripCancelledState) {
+        emit(TripCancelledState());
+      }
+    } catch (_) {
+      // Fallo silencioso — no es crítico para el flujo de logout
     }
   }
 

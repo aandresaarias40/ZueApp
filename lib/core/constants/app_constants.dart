@@ -53,9 +53,16 @@ class AppConstants {
   static const String vehicleCar = 'car';
   static const String vehicleMoto = 'moto';
 
-  // Tarifas Fusagasugá (COP)
+  // Tarifas Carro – Fusagasugá (COP)
   static const double minimumFareDistanceKm = 6.0;  // Rutas < 6 km → tarifa fija
-  static const double minimumFare = 8000;            // $8.000 COP tarifa fija mínima
+  static const double minimumFare = 8000;            // $8.000 COP tarifa fija mínima (carro)
+  static const double carBaseFare = 3000;            // Tarifa base carro (rutas >= 6 km)
+  static const double carPerKmRate = 1200;           // $1.200 por km adicional (carro)
+
+  // Tarifas Moto – Fusagasugá (COP)
+  static const double motoMinimumFare = 4500;        // $4.500 COP tarifa fija mínima (moto)
+  static const double motoBaseFare = 1500;           // Tarifa base moto (rutas >= 6 km)
+  static const double motoPerKmRate = 600;           // $600 por km adicional (moto)
 
   // Período de prueba para conductores nuevos
   static const int driverTrialDays = 3;
@@ -136,6 +143,10 @@ class AppConstants {
   // Selector automático según entorno
   static String get wompiPublicKey =>
       wompiUseSandbox ? wompiSandboxPublicKey : wompiProdPublicKey;
+
+  // ⚠️  Las llaves de integridad NO van en el APK.
+  // La firma SHA-256 la calcula la Cloud Function createPSETransaction
+  // usando WOMPI_INTEGRITY_SECRET del entorno del servidor (functions/.env).
 
   // URLs base de la API
   static const String wompiSandboxUrl    = 'https://sandbox.wompi.co/v1';

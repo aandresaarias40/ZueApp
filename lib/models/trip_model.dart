@@ -8,7 +8,8 @@ class TripModel {
   final String? driverName;
   final String? driverPhone;
   final String? vehiclePlate;
-  final String? vehicleType;
+  final String? vehicleType;          // Tipo de vehículo del conductor que aceptó
+  final String? requestedVehicleType; // Tipo de vehículo solicitado por el pasajero
   final double originLat;
   final double originLng;
   final String originAddress;
@@ -39,6 +40,7 @@ class TripModel {
     this.driverPhone,
     this.vehiclePlate,
     this.vehicleType,
+    this.requestedVehicleType,
     required this.originLat,
     required this.originLng,
     required this.originAddress,
@@ -72,6 +74,7 @@ class TripModel {
       driverPhone: data['driverPhone'],
       vehiclePlate: data['vehiclePlate'],
       vehicleType: data['vehicleType'],
+      requestedVehicleType: data['requestedVehicleType'],
       originLat: (data['originLat'] ?? 0.0).toDouble(),
       originLng: (data['originLng'] ?? 0.0).toDouble(),
       originAddress: data['originAddress'] ?? '',
@@ -104,6 +107,7 @@ class TripModel {
       'driverPhone': driverPhone,
       'vehiclePlate': vehiclePlate,
       'vehicleType': vehicleType,
+      'requestedVehicleType': requestedVehicleType,
       'originLat': originLat,
       'originLng': originLng,
       'originAddress': originAddress,

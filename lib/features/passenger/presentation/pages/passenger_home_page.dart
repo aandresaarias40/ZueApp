@@ -222,11 +222,30 @@ class _PassengerHomePageState extends State<PassengerHomePage> {
                       _FloatingButton(
                         icon: Icons.person_outline,
                         onTap: () {
+                          final authState =
+                              context.read<AuthBloc>().state;
+                          final passengerId =
+                              authState is AuthAuthenticatedState
+                                  ? authState.user.id
+                                  : null;
                           showModalBottomSheet(
                             context: context,
                             builder: (_) => _ProfileMenu(
+                              passengerId: passengerId,
                               onLogout: () {
-                                context.read<AuthBloc>().add(AuthLogoutEvent());
+                                // Cancelar viaje pendiente antes de salir
+                                if (passengerId != null) {
+                                  context.read<TripBloc>().add(
+                                        CancelPendingPassengerTripEvent(
+                                          passengerId: passengerId,
+                                          reason:
+                                              'Cancelado al cerrar sesión',
+                                        ),
+                                      );
+                                }
+                                context
+                                    .read<AuthBloc>()
+                                    .add(AuthLogoutEvent());
                               },
                             ),
                           );
@@ -384,8 +403,9 @@ class _FloatingButton extends StatelessWidget {
 
 class _ProfileMenu extends StatelessWidget {
   final VoidCallback onLogout;
+  final String? passengerId;
 
-  const _ProfileMenu({required this.onLogout});
+  const _ProfileMenu({required this.onLogout, this.passengerId});
 
   @override
   Widget build(BuildContext context) {

@@ -20,6 +20,7 @@ class TripService {
     required String destinationAddress,
     double? estimatedFare,
     double? estimatedDistance,
+    String requestedVehicleType = AppConstants.vehicleCar,
   }) async {
     final docRef = _trips.doc();
     final trip = TripModel(
@@ -35,6 +36,7 @@ class TripService {
       status: AppConstants.tripStatusRequested,
       fare: estimatedFare,
       distance: estimatedDistance,
+      requestedVehicleType: requestedVehicleType,
       assignmentType: 'auto',
       createdAt: DateTime.now(),
     );
@@ -154,6 +156,28 @@ class TripService {
     }
 
     await batch.commit();
+  }
+
+  /// Cancela cualquier viaje en estado "requested" del pasajero.
+  /// Se llama al cerrar sesión para evitar que el viaje quede en espera
+  /// indefinidamente en Firestore.
+  Future<void> cancelPendingPassengerTrip({
+    required String passengerId,
+    String reason = 'Cancelado al cerrar sesión',
+  }) async {
+    final snapshot = await _trips
+        .where('passengerId', isEqualTo: passengerId)
+        .where('status', isEqualTo: AppConstants.tripStatusRequested)
+        .limit(1)
+        .get();
+
+    for (final doc in snapshot.docs) {
+      await _trips.doc(doc.id).update({
+        'status': AppConstants.tripStatusCancelled,
+        'cancelReason': reason,
+        'cancelledAt': FieldValue.serverTimestamp(),
+      });
+    }
   }
 
   // Admin asigna viaje manualmente
@@ -311,15 +335,26 @@ class TripService {
   }
 
   // Calcular tarifa estimada (COP) — Tarifas de Fusagasugá
-  double estimateFare(double distanceKm) {
-    // Tarifa mínima fija: cualquier ruta < 6 km cuesta $8.000 COP (tarifa oficial Fusagasugá)
+  // [vehicleType] puede ser AppConstants.vehicleCar o AppConstants.vehicleMoto
+  double estimateFare(double distanceKm,
+      {String vehicleType = AppConstants.vehicleCar}) {
+    if (vehicleType == AppConstants.vehicleMoto) {
+      // Moto: tarifa fija $4.500 para rutas < 6 km
+      if (distanceKm < AppConstants.minimumFareDistanceKm) {
+        return AppConstants.motoMinimumFare;
+      }
+      // Moto: tarifa base $1.500 + $600 por km
+      final double fare =
+          AppConstants.motoBaseFare + (distanceKm * AppConstants.motoPerKmRate);
+      return (fare / 100).ceil() * 100.0;
+    }
+    // Carro: tarifa fija $8.000 para rutas < 6 km (tarifa oficial Fusagasugá)
     if (distanceKm < AppConstants.minimumFareDistanceKm) {
       return AppConstants.minimumFare;
     }
-    // Para rutas de 6 km en adelante: tarifa base $3.000 + $1.200 por km adicional
-    const double baseFare = 3000;
-    const double perKm = 1200;
-    final double fare = baseFare + (distanceKm * perKm);
+    // Carro: tarifa base $3.000 + $1.200 por km
+    final double fare =
+        AppConstants.carBaseFare + (distanceKm * AppConstants.carPerKmRate);
     return (fare / 100).ceil() * 100.0; // Redondear a centenas
   }
 }

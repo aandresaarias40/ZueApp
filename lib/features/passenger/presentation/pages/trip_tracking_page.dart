@@ -95,18 +95,18 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
                 mapToolbarEnabled: false,
               ),
 
-              // Botón atrás
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                child: SafeArea(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 8),
-                    child: Row(
-                      children: [
-                        if (trip.status == AppConstants.tripStatusRequested)
+              // Botón atrás (sólo visible en estados post-aceptación)
+              if (trip.status != AppConstants.tripStatusRequested)
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: SafeArea(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
+                      child: Row(
+                        children: [
                           Container(
                             decoration: BoxDecoration(
                               color: Colors.white,
@@ -119,15 +119,15 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
                               ],
                             ),
                             child: IconButton(
-                              icon: const Icon(Icons.close),
-                              onPressed: () => _showCancelDialog(context, trip),
+                              icon: const Icon(Icons.arrow_back),
+                              onPressed: () => context.go(AppRoutes.passengerHome),
                             ),
                           ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
 
               // Panel de información del viaje
               Positioned(
@@ -177,6 +177,48 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
                       if (trip.fare != null) ...[
                         const SizedBox(height: 12),
                         _FareInfo(fare: trip.fare!),
+                      ],
+
+                      // Botón cancelar — prominente cuando se está buscando conductor
+                      if (trip.status == AppConstants.tripStatusRequested) ...[
+                        const SizedBox(height: 20),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 52,
+                          child: OutlinedButton.icon(
+                            onPressed: () => _showCancelDialog(context, trip),
+                            icon: const Icon(
+                              Icons.cancel_outlined,
+                              color: AppTheme.errorColor,
+                            ),
+                            label: const Text(
+                              'Cancelar búsqueda',
+                              style: TextStyle(
+                                color: AppTheme.errorColor,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 16,
+                              ),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(
+                                color: AppTheme.errorColor,
+                                width: 1.5,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Puedes cancelar sin costo mientras buscamos conductor',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AppTheme.textSecondary,
+                          ),
+                        ),
                       ],
                     ],
                   ),

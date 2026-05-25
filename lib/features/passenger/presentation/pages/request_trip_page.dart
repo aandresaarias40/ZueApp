@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../auth/bloc/auth_bloc.dart';
@@ -29,6 +30,7 @@ class _RequestTripPageState extends State<RequestTripPage> {
   double? _estimatedDistance;
   bool _isSearching = false;
   bool _isRequesting = false;
+  String _selectedVehicleType = AppConstants.vehicleCar; // 'car' o 'moto'
 
   final TripService _tripService = TripService();
 
@@ -130,7 +132,8 @@ class _RequestTripPageState extends State<RequestTripPage> {
               ? '${p.street ?? ''}, ${p.locality ?? ''}'.trim().replaceAll(RegExp('^,\\s*'), '')
               : query;
 
-          final fare = _tripService.estimateFare(distanceKm);
+          final fare = _tripService.estimateFare(distanceKm,
+              vehicleType: _selectedVehicleType);
 
           setState(() {
             _destinationAddress = address;
@@ -176,6 +179,7 @@ class _RequestTripPageState extends State<RequestTripPage> {
             destinationAddress: _destinationAddress,
             estimatedFare: _estimatedFare,
             estimatedDistance: _estimatedDistance,
+            requestedVehicleType: _selectedVehicleType,
           ));
     } finally {
       if (mounted) setState(() => _isRequesting = false);
@@ -291,7 +295,170 @@ class _RequestTripPageState extends State<RequestTripPage> {
                 ),
               ),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
+
+              // ── Selector tipo de vehículo ─────────────────────────────────
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Tipo de servicio',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      // Opción Carro
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _selectedVehicleType = AppConstants.vehicleCar;
+                              // Recalcular tarifa si ya hay distancia
+                              if (_estimatedDistance != null) {
+                                _estimatedFare = _tripService.estimateFare(
+                                  _estimatedDistance!,
+                                  vehicleType: AppConstants.vehicleCar,
+                                );
+                              }
+                            });
+                          },
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 14, horizontal: 8),
+                            decoration: BoxDecoration(
+                              color: _selectedVehicleType ==
+                                      AppConstants.vehicleCar
+                                  ? AppTheme.primaryColor
+                                  : AppTheme.backgroundColor,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: _selectedVehicleType ==
+                                        AppConstants.vehicleCar
+                                    ? AppTheme.primaryColor
+                                    : AppTheme.dividerColor,
+                                width: 1.5,
+                              ),
+                            ),
+                            child: Column(
+                              children: [
+                                Icon(
+                                  Icons.directions_car_rounded,
+                                  size: 28,
+                                  color: _selectedVehicleType ==
+                                          AppConstants.vehicleCar
+                                      ? Colors.white
+                                      : AppTheme.textSecondary,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Carro',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: _selectedVehicleType ==
+                                            AppConstants.vehicleCar
+                                        ? Colors.white
+                                        : AppTheme.textPrimary,
+                                  ),
+                                ),
+                                Text(
+                                  'Desde \$${AppConstants.minimumFare.toStringAsFixed(0)}',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: _selectedVehicleType ==
+                                            AppConstants.vehicleCar
+                                        ? Colors.white70
+                                        : AppTheme.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // Opción Moto
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _selectedVehicleType = AppConstants.vehicleMoto;
+                              // Recalcular tarifa si ya hay distancia
+                              if (_estimatedDistance != null) {
+                                _estimatedFare = _tripService.estimateFare(
+                                  _estimatedDistance!,
+                                  vehicleType: AppConstants.vehicleMoto,
+                                );
+                              }
+                            });
+                          },
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 14, horizontal: 8),
+                            decoration: BoxDecoration(
+                              color: _selectedVehicleType ==
+                                      AppConstants.vehicleMoto
+                                  ? AppTheme.primaryColor
+                                  : AppTheme.backgroundColor,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: _selectedVehicleType ==
+                                        AppConstants.vehicleMoto
+                                    ? AppTheme.primaryColor
+                                    : AppTheme.dividerColor,
+                                width: 1.5,
+                              ),
+                            ),
+                            child: Column(
+                              children: [
+                                Icon(
+                                  Icons.two_wheeler_rounded,
+                                  size: 28,
+                                  color: _selectedVehicleType ==
+                                          AppConstants.vehicleMoto
+                                      ? Colors.white
+                                      : AppTheme.textSecondary,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Moto',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: _selectedVehicleType ==
+                                            AppConstants.vehicleMoto
+                                        ? Colors.white
+                                        : AppTheme.textPrimary,
+                                  ),
+                                ),
+                                Text(
+                                  'Desde \$${AppConstants.motoMinimumFare.toStringAsFixed(0)}',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: _selectedVehicleType ==
+                                            AppConstants.vehicleMoto
+                                        ? Colors.white70
+                                        : AppTheme.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 20),
 
               // Resumen del viaje (si hay destino)
               if (_destinationLat != null) ...[
