@@ -17,6 +17,15 @@ if (keyPropertiesFile.exists()) {
     keyProperties.load(FileInputStream(keyPropertiesFile))
 }
 
+// ── API Keys desde local.properties (fuera del control de versiones) ────────────
+// local.properties está en .gitignore — NUNCA lo subas a git.
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localProperties.load(FileInputStream(localPropertiesFile))
+}
+val mapsApiKey: String = localProperties.getProperty("MAPS_API_KEY", "")
+
 android {
     namespace = "com.example.zue"
     compileSdk = flutter.compileSdkVersion
@@ -46,6 +55,8 @@ android {
         targetSdk     = flutter.targetSdkVersion
         versionCode   = flutter.versionCode
         versionName   = flutter.versionName
+        // Expone MAPS_API_KEY al AndroidManifest mediante ${MAPS_API_KEY}
+        manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
     }
 
     buildTypes {

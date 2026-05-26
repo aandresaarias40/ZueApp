@@ -627,9 +627,45 @@ class _PSEWebViewState extends State<_PSEWebView> {
   bool _isLoading = true;
   bool _captured = false; // evita disparar onRedirectCapture más de una vez
 
+  /// Dominios permitidos dentro del WebView de pago PSE.
+  /// Solo se navegará a URLs cuyo host termine en uno de estos sufijos.
+  /// Los bancos PSE colombianos y Wompi usan subdominios de estos dominios.
+  static const _allowedDomainSuffixes = [
+    'wompi.co',       // checkout.wompi.co, sandbox.wompi.co, production.wompi.co
+    'pse.com.co',     // portal PSE de ACH Colombia
+    'web.app',        // zue-app.web.app (redirect de regreso a la app)
+    'firebaseapp.com',// alternativa Firebase Hosting
+  ];
+
+  /// Devuelve true si la URL pertenece a un dominio permitido o
+  /// si no tiene host (esquemas como about:blank usados internamente).
+  bool _isAllowedUrl(String url) {
+    // Bloquear esquemas peligrosos siempre, independientemente del dominio
+    final lower = url.toLowerCase();
+    if (lower.startsWith('javascript:') ||
+        lower.startsWith('data:') ||
+        lower.startsWith('file:') ||
+        lower.startsWith('content:')) {
+      return false;
+    }
+    final uri = Uri.tryParse(url);
+    if (uri == null) return false;
+    // Permitir about:blank y URLs sin host (navegación interna del banco)
+    if (uri.host.isEmpty) return true;
+    return _allowedDomainSuffixes.any((suffix) =>
+        uri.host == suffix || uri.host.endsWith('.$suffix'));
+  }
+
   @override
   void initState() {
     super.initState();
+
+    // Validar la URL inicial antes de cargarla
+    assert(
+      _isAllowedUrl(widget.url),
+      'WebView PSE: URL inicial fuera de dominios permitidos: ${widget.url}',
+    );
+
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(NavigationDelegate(
@@ -640,11 +676,15 @@ class _PSEWebViewState extends State<_PSEWebView> {
           if (mounted) setState(() => _isLoading = false);
         },
         onNavigationRequest: (request) {
-          // Interceptar la URL de redirect de Wompi
+          // 1. Interceptar la URL de redirect de Wompi (fin del flujo de pago)
           if (!_captured && request.url.contains(widget.redirectUrlPattern)) {
             _captured = true;
             final uri = Uri.parse(request.url);
             widget.onRedirectCapture(uri);
+            return NavigationDecision.prevent;
+          }
+          // 2. Bloquear navegación a dominios fuera de la lista permitida
+          if (!_isAllowedUrl(request.url)) {
             return NavigationDecision.prevent;
           }
           return NavigationDecision.navigate;

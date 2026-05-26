@@ -29,9 +29,11 @@
             </intent-filter>
         </activity>
 
+        <!-- API key leída desde local.properties → build.gradle.kts → manifestPlaceholder -->
+        <!-- NUNCA pongas la key literal aquí — se expone en el repositorio -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyDdE2FTXaBNKKJjG7hVllmXC8t4lalhjjU" />
+            android:value="${MAPS_API_KEY}" />
 
         <meta-data
             android:name="flutterEmbedding"

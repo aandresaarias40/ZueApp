@@ -37,14 +37,19 @@ const COL_SUBSCRIPTIONS = "subscriptions";
 const COL_DRIVERS       = "drivers";
 
 // ── Credenciales Upstash (SOLO en servidor — nunca en el APK) ─────────────────
-const UPSTASH_HOST     = "endless-grouper-132192.upstash.io";
-const UPSTASH_PORT     = 6379;
-const UPSTASH_PASSWORD = "gQAAAAAAAgRgAAIgcDJlNDA5ZDFkYjhkYzU0ODRlODcyMjk0ODZmNTU1YjAxNw";
+// Configurar en functions/.env (local) o Firebase Console → Functions → Variables de entorno.
+// ⚠️  NUNCA pongas estos valores directamente en este archivo ni en git.
+const UPSTASH_HOST     = process.env.UPSTASH_HOST     || "";
+const UPSTASH_PORT     = parseInt(process.env.UPSTASH_PORT || "6379", 10);
+const UPSTASH_PASSWORD = process.env.UPSTASH_PASSWORD || "";
 
 // ── Singleton Redis por instancia de función ───────────────────────────────────
 let _redis = null;
 function getRedis() {
   if (!_redis) {
+    if (!UPSTASH_HOST || !UPSTASH_PASSWORD) {
+      throw new Error("Faltan variables de entorno UPSTASH_HOST / UPSTASH_PASSWORD");
+    }
     _redis = new Redis({
       host:                 UPSTASH_HOST,
       port:                 UPSTASH_PORT,
@@ -201,6 +206,13 @@ exports.wompiWebhook = onRequest({ ...OPTS, invoker: "public" }, async (req, res
     return res.status(500).json({ error: "Configuracion incompleta del servidor" });
   }
 
+  // 1b. Validar que el timestamp no sea mayor a 5 minutos (anti-replay por tiempo)
+  const tsNum = parseInt(timestamp, 10);
+  if (!tsNum || Math.abs(Date.now() / 1000 - tsNum) > 300) {
+    console.warn("wompiWebhook: timestamp fuera de ventana", { timestamp });
+    return res.status(401).json({ error: "Timestamp invalido o expirado" });
+  }
+
   const event = req.body;
   const txId  = event && event.data && event.data.transaction
     ? event.data.transaction.id
@@ -212,6 +224,23 @@ exports.wompiWebhook = onRequest({ ...OPTS, invoker: "public" }, async (req, res
   if (expected !== checksum) {
     console.warn("wompiWebhook: firma invalida", { expected, checksum });
     return res.status(401).json({ error: "Firma invalida" });
+  }
+
+  // 1c. Anti-replay: verificar que este checksum exacto no fue procesado antes.
+  // Se guarda en Redis con TTL de 10 min (más que la ventana de 5 min).
+  const replayKey = `wompi:seen:${checksum}`;
+  let redis;
+  try {
+    redis = getRedis();
+    const alreadySeen = await redis.set(replayKey, "1", "EX", 600, "NX");
+    if (alreadySeen === null) {
+      // NX falló → la clave ya existía → es un reenvío
+      console.warn("wompiWebhook: replay detectado para checksum", checksum);
+      return res.status(200).json({ ok: true, ignored: "replay detectado" });
+    }
+  } catch (redisErr) {
+    // Si Redis falla, logueamos pero NO bloqueamos (fail-open para no perder pagos reales).
+    console.error("wompiWebhook: error al verificar replay en Redis", redisErr.message);
   }
 
   // 2. Ignorar eventos que no sean transaction.updated
