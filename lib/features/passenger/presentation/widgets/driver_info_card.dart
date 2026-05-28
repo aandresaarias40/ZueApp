@@ -8,8 +8,34 @@ class DriverInfoCard extends StatelessWidget {
 
   const DriverInfoCard({super.key, required this.trip});
 
+  /// Limpia el número dejando solo dígitos y lo normaliza a formato colombiano
+  /// para WhatsApp: +57XXXXXXXXXX
+  String _waNumber(String phone) {
+    final digits = phone.replaceAll(RegExp(r'\D'), '');
+    // Si ya tiene código de país (57 + 10 dígitos = 12)
+    if (digits.length == 12 && digits.startsWith('57')) return digits;
+    // Si tiene 10 dígitos (número local colombiano)
+    if (digits.length == 10) return '57$digits';
+    return digits;
+  }
+
+  Future<void> _call(String phone) async {
+    final uri = Uri.parse('tel:$phone');
+    if (await canLaunchUrl(uri)) await launchUrl(uri);
+  }
+
+  Future<void> _whatsapp(String phone) async {
+    final number = _waNumber(phone);
+    final uri = Uri.parse('https://wa.me/$number');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final phone = trip.driverPhone;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -77,22 +103,58 @@ class DriverInfoCard extends StatelessWidget {
             ),
           ),
 
-          // Botón llamar
-          if (trip.driverPhone != null)
-            GestureDetector(
-              onTap: () =>
-                  launchUrl(Uri.parse('tel:${trip.driverPhone}')),
-              child: Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: AppTheme.successColor,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.call, color: Colors.white, size: 20),
-              ),
+          // Botones de contacto (solo cuando hay teléfono)
+          if (phone != null) ...[
+            // WhatsApp
+            _ContactButton(
+              color: const Color(0xFF25D366),
+              icon: Icons.chat,
+              onTap: () => _whatsapp(phone),
+              tooltip: 'WhatsApp',
             ),
+            const SizedBox(width: 8),
+            // Llamada
+            _ContactButton(
+              color: AppTheme.successColor,
+              icon: Icons.call,
+              onTap: () => _call(phone),
+              tooltip: 'Llamar',
+            ),
+          ],
         ],
+      ),
+    );
+  }
+}
+
+class _ContactButton extends StatelessWidget {
+  final Color color;
+  final IconData icon;
+  final VoidCallback onTap;
+  final String tooltip;
+
+  const _ContactButton({
+    required this.color,
+    required this.icon,
+    required this.onTap,
+    required this.tooltip,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: Colors.white, size: 20),
+        ),
       ),
     );
   }

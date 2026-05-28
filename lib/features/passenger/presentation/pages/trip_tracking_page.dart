@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -23,10 +24,68 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
   GoogleMapController? _mapController;
   final Set<Marker> _markers = {};
 
+  // Timeout: cancela automáticamente si el viaje lleva más de 5 min sin conductor
+  static const _timeoutDuration = Duration(minutes: 5);
+  Timer? _timeoutTimer;
+  bool _timeoutDialogShown = false;
+
   @override
   void initState() {
     super.initState();
     context.read<TripBloc>().add(WatchTripEvent(tripId: widget.tripId));
+    _startTimeoutTimer();
+  }
+
+  @override
+  void dispose() {
+    _timeoutTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startTimeoutTimer() {
+    _timeoutTimer?.cancel();
+    _timeoutTimer = Timer(_timeoutDuration, _onTimeout);
+  }
+
+  void _cancelTimeoutTimer() {
+    _timeoutTimer?.cancel();
+    _timeoutTimer = null;
+  }
+
+  void _onTimeout() {
+    if (!mounted || _timeoutDialogShown) return;
+    _timeoutDialogShown = true;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.timer_off_outlined, color: AppTheme.warningColor),
+            SizedBox(width: 10),
+            Text('Sin respuesta'),
+          ],
+        ),
+        content: const Text(
+          'No encontramos un conductor disponible en los últimos 5 minutos.\n\n'
+          'Tu solicitud ha sido cancelada sin costo.',
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              context.read<TripBloc>().add(CancelTripEvent(
+                    tripId: widget.tripId,
+                    reason: 'Timeout: sin conductor en 5 minutos',
+                  ));
+              context.go(AppRoutes.passengerHome);
+            },
+            child: const Text('Entendido'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -34,6 +93,10 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
     return Scaffold(
       body: BlocConsumer<TripBloc, TripState>(
         listener: (context, state) {
+          // Cuando el conductor acepta, el timeout ya no aplica
+          if (state is TripAcceptedState || state is TripActiveState) {
+            _cancelTimeoutTimer();
+          }
           if (state is TripCompletedState) {
             // Mostrar diálogo de calificación
             showDialog(

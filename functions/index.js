@@ -9,6 +9,7 @@
  */
 
 const { onRequest } = require("firebase-functions/v2/https");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 const admin  = require("firebase-admin");
 const Redis  = require("ioredis");
 const crypto = require("crypto");
@@ -330,7 +331,7 @@ exports.wompiWebhook = onRequest({ ...OPTS, invoker: "public" }, async (req, res
     });
 
     await batch.commit();
-    console.log("wompiWebhook: pago aprobado", { driverId, plan, txId });
+    console.log("wompiWebhook: pago aprobado", { txId });
     return res.status(200).json({ ok: true, status: "approved" });
 
   } else if (txStatus === "DECLINED" || txStatus === "VOIDED" || txStatus === "ERROR") {
@@ -340,12 +341,12 @@ exports.wompiWebhook = onRequest({ ...OPTS, invoker: "public" }, async (req, res
       txStatus,
       transactionId: txId,
     });
-    console.log("wompiWebhook: pago rechazado", { driverId, txStatus, txId });
+    console.log("wompiWebhook: pago rechazado", { txStatus, txId });
     return res.status(200).json({ ok: true, status: "declined" });
 
   } else {
     // PENDING — Wompi reintentará cuando cambie el estado
-    console.log("wompiWebhook: pago pendiente", { driverId, txStatus, txId });
+    console.log("wompiWebhook: pago pendiente", { txStatus, txId });
     return res.status(200).json({ ok: true, status: "pending" });
   }
 });
@@ -414,11 +415,10 @@ exports.createPSETransaction = onRequest(OPTS, async (req, res) => {
   const signatureStr = `${reference}${amountInt}COP${WOMPI_INTEGRITY_SECRET}`;
   const integrityHash = crypto.createHash("sha256").update(signatureStr).digest("hex");
 
-  console.log("createPSETransaction: iniciando", {
-    driverId, plan, reference, amountInt,
-    signatureInput: `${reference}${amountInt}COP[secret]`,
-    integrityHash,
-  });
+  // Log de inicio solo en sandbox para no exponer datos internos en producción
+  if (WOMPI_USE_SANDBOX) {
+    console.log("createPSETransaction: iniciando [sandbox]", { driverId, plan, reference, amountInt });
+  }
 
   try {
     // 1. Obtener acceptance_token Y personal_data_auth_token de Wompi
@@ -458,11 +458,14 @@ exports.createPSETransaction = onRequest(OPTS, async (req, res) => {
       signature: integrityHash,
     };
 
-    console.log("createPSETransaction: enviando a Wompi", JSON.stringify({
+  // Log del cuerpo de la transacción solo en sandbox
+  if (WOMPI_USE_SANDBOX) {
+    console.log("createPSETransaction: enviando a Wompi [sandbox]", JSON.stringify({
       ...txBody,
       acceptance_token:         "[redacted]",
       personal_data_auth_token: "[redacted]",
     }));
+  }
 
     const txRes = await fetch(`${WOMPI_BASE_URL}/transactions`, {
       method: "POST",
@@ -510,11 +513,44 @@ exports.createPSETransaction = onRequest(OPTS, async (req, res) => {
       });
     }
 
-    console.log("createPSETransaction: transacción creada", { driverId, transactionId, plan });
+    console.log("createPSETransaction: transacción creada", { transactionId, plan });
     return res.json({ transactionId, redirectUrl });
 
   } catch (e) {
     console.error("createPSETransaction error:", e.message);
     return res.status(500).json({ error: "Error al crear transacción: " + e.message });
   }
+});
+
+// =============================================================================
+// cancelStaleTrips — Cancela viajes en estado "requested" sin conductor
+// tras 5 minutos. Corre cada minuto como scheduled function.
+// Cubre el caso donde el pasajero cierra la app antes del timeout del cliente.
+// =============================================================================
+exports.cancelStaleTrips = onSchedule({
+  schedule: "every 1 minutes",
+  timeZone: "America/Bogota",
+  ...OPTS,
+}, async () => {
+  const db = admin.firestore();
+  const cutoff = admin.firestore.Timestamp.fromMillis(Date.now() - 5 * 60 * 1000);
+
+  const stale = await db.collection("trips")
+    .where("status", "==", "requested")
+    .where("createdAt", "<", cutoff)
+    .get();
+
+  if (stale.empty) return;
+
+  const batch = db.batch();
+  stale.docs.forEach((doc) => {
+    batch.update(doc.ref, {
+      status: "cancelled",
+      cancelReason: "Timeout: sin conductor en 5 minutos",
+      cancelledAt: admin.firestore.Timestamp.now(),
+    });
+  });
+
+  await batch.commit();
+  console.log(`cancelStaleTrips: ${stale.size} viaje(s) cancelados por timeout`);
 });

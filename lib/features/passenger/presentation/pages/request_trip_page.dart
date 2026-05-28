@@ -9,6 +9,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../auth/bloc/auth_bloc.dart';
 import '../../../trips/bloc/trip_bloc.dart';
 import '../../../../services/trip_service.dart';
+import '../../../../services/driver_service.dart';
 
 class RequestTripPage extends StatefulWidget {
   const RequestTripPage({super.key});
@@ -33,6 +34,7 @@ class _RequestTripPageState extends State<RequestTripPage> {
   String _selectedVehicleType = AppConstants.vehicleCar; // 'car' o 'moto'
 
   final TripService _tripService = TripService();
+  final DriverService _driverService = DriverService();
 
   @override
   void initState() {
@@ -168,6 +170,38 @@ class _RequestTripPageState extends State<RequestTripPage> {
 
     setState(() => _isRequesting = true);
     try {
+      // Verificar disponibilidad de conductores antes de crear el viaje
+      final nearbyDrivers = await _driverService.getNearbyDrivers(
+        lat: _originPosition!.latitude,
+        lng: _originPosition!.longitude,
+        vehicleType: _selectedVehicleType,
+      );
+
+      if (!mounted) return;
+
+      if (nearbyDrivers.isEmpty) {
+        setState(() => _isRequesting = false);
+        _showNoDriversDialog();
+        return;
+      }
+
+      context.read<TripBloc>().add(RequestTripEvent(
+            passengerId: authState.user.id,
+            passengerName: authState.user.name,
+            originLat: _originPosition!.latitude,
+            originLng: _originPosition!.longitude,
+            originAddress: _originAddress,
+            destinationLat: _destinationLat!,
+            destinationLng: _destinationLng!,
+            destinationAddress: _destinationAddress,
+            estimatedFare: _estimatedFare,
+            estimatedDistance: _estimatedDistance,
+            requestedVehicleType: _selectedVehicleType,
+          ));
+    } catch (_) {
+      // Si falla la consulta de conductores, continuar igual para no bloquear
+      // al pasajero por un error de red en la validación previa.
+      if (!mounted) return;
       context.read<TripBloc>().add(RequestTripEvent(
             passengerId: authState.user.id,
             passengerName: authState.user.name,
@@ -184,6 +218,39 @@ class _RequestTripPageState extends State<RequestTripPage> {
     } finally {
       if (mounted) setState(() => _isRequesting = false);
     }
+  }
+
+  void _showNoDriversDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.directions_car_outlined, color: AppTheme.warningColor),
+            SizedBox(width: 10),
+            Text('Sin conductores disponibles'),
+          ],
+        ),
+        content: const Text(
+          'No hay conductores disponibles en tu zona en este momento.\n\n'
+          'Intenta de nuevo en unos minutos.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Entendido'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _requestTrip();
+            },
+            child: const Text('Reintentar'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
