@@ -236,7 +236,35 @@ class AuthService {
   }
 
   // Cerrar sesión
+  // Marca al conductor como offline en Firestore antes de cerrar la sesión
+  // para que no quede visible en el mapa de pasajeros.
   Future<void> signOut() async {
+    final uid = _auth.currentUser?.uid;
+    if (uid != null) {
+      try {
+        // Verificar si el usuario es conductor antes de tocar la colección drivers
+        final userDoc = await _firestore
+            .collection(AppConstants.usersCollection)
+            .doc(uid)
+            .get();
+        final role = userDoc.exists
+            ? (userDoc.data() as Map<String, dynamic>)['role'] as String?
+            : null;
+
+        if (role == AppConstants.roleDriver) {
+          await _firestore
+              .collection(AppConstants.driversCollection)
+              .doc(uid)
+              .update({
+            'isOnline': false,
+            'status': AppConstants.driverStatusInactive,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        }
+      } catch (_) {
+        // No bloquear el logout si Firestore falla
+      }
+    }
     await _auth.signOut();
   }
 

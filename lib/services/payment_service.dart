@@ -163,6 +163,13 @@ class PaymentService {
     final plan = data['plan'] as String;
     final amount = (data['amount'] as num).toDouble();
 
+    // Idempotencia: si ya fue procesado, no crear duplicados
+    final currentStatus = data['status'] as String?;
+    if (currentStatus == AppConstants.paymentStatusApproved ||
+        currentStatus == AppConstants.paymentStatusDeclined) {
+      return;
+    }
+
     if (status == 'APPROVED') {
       // Calcular fechas de suscripción
       final now = DateTime.now();

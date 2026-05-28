@@ -167,8 +167,6 @@ class TripErrorState extends TripState {
 class TripBloc extends Bloc<TripEvent, TripState> {
   final TripRepositoryImpl tripRepository;
   final TripService _tripService = TripService();
-  StreamSubscription? _tripSubscription;
-  StreamSubscription? _pendingTripsSubscription;
 
   TripBloc({required this.tripRepository}) : super(TripInitialState()) {
     on<RequestTripEvent>(_onRequestTrip);
@@ -180,13 +178,6 @@ class TripBloc extends Bloc<TripEvent, TripState> {
     on<CancelPendingPassengerTripEvent>(_onCancelPendingPassengerTrip);
     on<RateTripEvent>(_onRateTrip);
     on<LoadTripHistoryEvent>(_onLoadHistory);
-  }
-
-  @override
-  Future<void> close() {
-    _tripSubscription?.cancel();
-    _pendingTripsSubscription?.cancel();
-    return super.close();
   }
 
   Future<void> _onRequestTrip(
@@ -235,7 +226,6 @@ class TripBloc extends Bloc<TripEvent, TripState> {
 
   Future<void> _onWatchTrip(
       WatchTripEvent event, Emitter<TripState> emit) async {
-    await _tripSubscription?.cancel();
     await emit.forEach(
       _tripService.watchTripById(event.tripId),
       onData: (trip) {

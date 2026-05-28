@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/driver_model.dart';
 import '../models/user_model.dart';
@@ -276,56 +277,24 @@ class DriverService {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // ─────────────────────────────────────────────────────────────────────────
-  // Distancia Haversine correcta (metros)
+  // Distancia Haversine (metros) usando dart:math nativo
   // Fórmula: a = sin²(Δlat/2) + cos(lat1)·cos(lat2)·sin²(Δlng/2)
+  // dart:math compila a instrucciones FPU nativas: más preciso y más rápido
+  // que las aproximaciones manuales por series de Taylor / Newton-Raphson.
   // ─────────────────────────────────────────────────────────────────────────
   double _calculateDistance(
       double lat1, double lng1, double lat2, double lng2) {
     const double earthRadius = 6371000;
     final double dLat = _toRadians(lat2 - lat1);
     final double dLng = _toRadians(lng2 - lng1);
-    final double sinDLat = _sin(dLat / 2);
-    final double sinDLng = _sin(dLng / 2);
+    final double sinDLat = math.sin(dLat / 2);
+    final double sinDLng = math.sin(dLng / 2);
     final double a = sinDLat * sinDLat +
-        _cos(_toRadians(lat1)) * _cos(_toRadians(lat2)) *
+        math.cos(_toRadians(lat1)) * math.cos(_toRadians(lat2)) *
             sinDLng * sinDLng;
-    final double c = 2 * _asin(a < 1.0 ? _sqrt(a) : 1.0);
+    final double c = 2 * math.asin(math.sqrt(a.clamp(0.0, 1.0)));
     return earthRadius * c;
   }
 
-  double _toRadians(double degrees) => degrees * 3.14159265358979 / 180;
-
-  // Aproximaciones trigonométricas de alta precisión (sin importar dart:math)
-  double _sin(double x) {
-    // Serie de Taylor orden 7: sin(x) ≈ x - x³/6 + x⁵/120 - x⁷/5040
-    final x2 = x * x;
-    return x * (1 - x2 / 6 * (1 - x2 / 20 * (1 - x2 / 42)));
-  }
-
-  double _cos(double x) {
-    // Serie de Taylor orden 6: cos(x) ≈ 1 - x²/2 + x⁴/24 - x⁶/720
-    final x2 = x * x;
-    return 1 - x2 / 2 * (1 - x2 / 12 * (1 - x2 / 30));
-  }
-
-  double _asin(double x) {
-    // Aproximación de Bhaskara I extendida para |x| ≤ 1
-    // Para valores cercanos a 1 usamos identidad: asin(x) = π/2 - asin(√(1-x²))
-    if (x > 0.7) {
-      final y = _sqrt(1 - x * x);
-      return 3.14159265358979 / 2 - _asin(y);
-    }
-    final x2 = x * x;
-    return x * (1 + x2 / 6 * (1 + x2 * 3 / 20 * (1 + x2 * 5 / 42)));
-  }
-
-  double _sqrt(double x) {
-    if (x <= 0) return 0;
-    double r = x;
-    for (int i = 0; i < 8; i++) {
-      r = (r + x / r) / 2; // Newton-Raphson
-    }
-    return r;
-  }
+  double _toRadians(double degrees) => degrees * math.pi / 180;
 }

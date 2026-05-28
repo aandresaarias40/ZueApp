@@ -206,9 +206,12 @@ exports.wompiWebhook = onRequest({ ...OPTS, invoker: "public" }, async (req, res
     return res.status(500).json({ error: "Configuracion incompleta del servidor" });
   }
 
-  // 1b. Validar que el timestamp no sea mayor a 5 minutos (anti-replay por tiempo)
+  // 1b. Validar que el timestamp no sea mayor a 24 horas (anti-replay por tiempo).
+  // Wompi reintenta el webhook con el timestamp original hasta por varias horas;
+  // una ventana de 5 min rechazaba reintentos legítimos tras caídas de red.
+  // La protección real contra replay se delega al checksum único en Redis (paso 1c).
   const tsNum = parseInt(timestamp, 10);
-  if (!tsNum || Math.abs(Date.now() / 1000 - tsNum) > 300) {
+  if (!tsNum || Math.abs(Date.now() / 1000 - tsNum) > 86400) {
     console.warn("wompiWebhook: timestamp fuera de ventana", { timestamp });
     return res.status(401).json({ error: "Timestamp invalido o expirado" });
   }
