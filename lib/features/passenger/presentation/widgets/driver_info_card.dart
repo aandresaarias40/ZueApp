@@ -48,7 +48,7 @@ class DriverInfoCard extends StatelessWidget {
           // Avatar del conductor
           CircleAvatar(
             radius: 26,
-            backgroundColor: AppTheme.primaryColor.withOpacity(0.1),
+            backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.1),
             child: const Icon(
               Icons.person,
               color: AppTheme.primaryColor,
@@ -76,7 +76,7 @@ class DriverInfoCard extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
-                        color: AppTheme.primaryColor.withOpacity(0.1),
+                        color: AppTheme.primaryColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(

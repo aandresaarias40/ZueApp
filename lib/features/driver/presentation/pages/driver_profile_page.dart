@@ -105,7 +105,7 @@ class _ProfileLoading extends StatelessWidget {
           // Avatar con inicial del nombre
           CircleAvatar(
             radius: 50,
-            backgroundColor: AppTheme.primaryColor.withOpacity(0.1),
+            backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.1),
             child: user != null && user!.name.isNotEmpty
                 ? Text(
                     user!.name[0].toUpperCase(),
@@ -169,7 +169,7 @@ class _BasicProfile extends StatelessWidget {
           // Avatar
           CircleAvatar(
             radius: 50,
-            backgroundColor: AppTheme.primaryColor.withOpacity(0.1),
+            backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.1),
             child: user != null && user!.name.isNotEmpty
                 ? Text(
                     user!.name[0].toUpperCase(),
@@ -212,10 +212,10 @@ class _BasicProfile extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppTheme.warningColor.withOpacity(0.1),
+              color: AppTheme.warningColor.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                  color: AppTheme.warningColor.withOpacity(0.3)),
+                  color: AppTheme.warningColor.withValues(alpha: 0.3)),
             ),
             child: Column(
               children: [
@@ -302,7 +302,7 @@ class _FullProfile extends StatelessWidget {
           // Avatar
           CircleAvatar(
             radius: 50,
-            backgroundColor: AppTheme.primaryColor.withOpacity(0.1),
+            backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.1),
             child: Text(
               driver.name.isNotEmpty ? driver.name[0].toUpperCase() : 'D',
               style: const TextStyle(
@@ -388,7 +388,7 @@ class _FullProfile extends StatelessWidget {
                     'Vence en ${driver.daysUntilExpiry} día(s) · '
                     'Plan ${driver.subscriptionPlan == 'weekly' ? 'Semanal' : 'Mensual'}',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.85),
+                      color: Colors.white.withValues(alpha: 0.85),
                       fontSize: 13,
                     ),
                   )
@@ -462,10 +462,10 @@ class _FullProfile extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: AppTheme.primaryColor.withOpacity(0.05),
+                color: AppTheme.primaryColor.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                    color: AppTheme.primaryColor.withOpacity(0.2)),
+                    color: AppTheme.primaryColor.withValues(alpha: 0.2)),
               ),
               child: Column(
                 children: [
@@ -551,7 +551,7 @@ class _StatCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.05), blurRadius: 8),
+              color: Colors.black.withValues(alpha: 0.05), blurRadius: 8),
         ],
       ),
       child: Column(

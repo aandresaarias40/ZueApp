@@ -44,7 +44,7 @@ class PassengerProfilePage extends StatelessWidget {
                   // Avatar con iniciales
                   CircleAvatar(
                     radius: 52,
-                    backgroundColor: AppTheme.primaryColor.withOpacity(0.12),
+                    backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.12),
                     child: Text(
                       initials,
                       style: const TextStyle(
@@ -68,7 +68,7 @@ class PassengerProfilePage extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                     decoration: BoxDecoration(
-                      color: AppTheme.primaryColor.withOpacity(0.1),
+                      color: AppTheme.primaryColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: const Text(
@@ -189,7 +189,7 @@ class _InfoTile extends StatelessWidget {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: AppTheme.primaryColor.withOpacity(0.08),
+              color: AppTheme.primaryColor.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(icon, color: AppTheme.primaryColor, size: 20),

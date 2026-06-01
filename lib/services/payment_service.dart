@@ -256,14 +256,6 @@ class PaymentService {
         );
   }
 
-  /// Obtener token de aceptación de Wompi (requerido para crear transacciones)
-  Future<String> _getAcceptanceToken() async {
-    final response = await _dio.get(
-      '${AppConstants.wompiBaseUrl}/merchants/${AppConstants.wompiPublicKey}',
-    );
-    return response.data['data']['presigned_acceptance']['acceptance_token'];
-  }
-
   /// Obtener resumen de ingresos para el admin
   Future<Map<String, dynamic>> getRevenueSummary() async {
     final now = DateTime.now();

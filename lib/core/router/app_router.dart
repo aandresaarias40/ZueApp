@@ -81,8 +81,8 @@ class AppRouter {
         if (isLoading) return isSplash ? null : AppRoutes.splash;
         if (!isLoggedIn && !isAuthRoute) return AppRoutes.login;
 
-        if (isLoggedIn) {
-          final user = (authState as AuthAuthenticatedState).user;
+        if (authState is AuthAuthenticatedState) {
+          final user = authState.user;
           if (isAuthRoute || isSplash) {
             switch (user.role) {
               case 'passenger': return AppRoutes.passengerHome;

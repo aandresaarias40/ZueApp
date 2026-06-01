@@ -50,7 +50,7 @@ class AdminDashboardPage extends StatelessWidget {
                   Text(
                     'Gestiona tu plataforma Zue',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.85),
+                      color: Colors.white.withValues(alpha: 0.85),
                       fontSize: 14,
                     ),
                   ),
@@ -188,7 +188,7 @@ class AdminDashboardPage extends StatelessWidget {
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
+                        color: Colors.black.withValues(alpha: 0.05),
                         blurRadius: 10,
                       ),
                     ],
@@ -255,7 +255,7 @@ class _MetricCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
           ),
         ],
@@ -320,7 +320,7 @@ class _AdminMenuCard extends StatelessWidget {
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
+                color: color.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(icon, color: color, size: 24),

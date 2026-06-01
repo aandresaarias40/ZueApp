@@ -6,7 +6,6 @@ import 'package:webview_flutter/webview_flutter.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_theme.dart';
-import '../../../auth/bloc/auth_bloc.dart';
 import '../../bloc/driver_bloc.dart';
 import '../../../../services/payment_service.dart';
 
@@ -404,7 +403,7 @@ class _PlanOption extends StatelessWidget {
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: isSelected
-              ? AppTheme.primaryColor.withOpacity(0.05)
+              ? AppTheme.primaryColor.withValues(alpha: 0.05)
               : Colors.white,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
@@ -414,7 +413,7 @@ class _PlanOption extends StatelessWidget {
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: AppTheme.primaryColor.withOpacity(0.1),
+                    color: AppTheme.primaryColor.withValues(alpha: 0.1),
                     blurRadius: 12,
                   )
                 ]
@@ -572,9 +571,9 @@ class _StatusCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       margin: const EdgeInsets.only(bottom: 24),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
@@ -929,7 +928,7 @@ class _BankSelectionSheetState extends State<_BankSelectionSheet> {
                             width: 44,
                             height: 44,
                             decoration: BoxDecoration(
-                              color: AppTheme.primaryColor.withOpacity(0.08),
+                              color: AppTheme.primaryColor.withValues(alpha: 0.08),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: const Icon(Icons.account_balance,

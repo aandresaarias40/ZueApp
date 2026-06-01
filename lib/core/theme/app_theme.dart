@@ -28,8 +28,7 @@ class AppTheme {
         seedColor: primaryColor,
         primary: primaryColor,
         secondary: accentColor,
-        surface: surfaceColor,
-        background: backgroundColor,
+        surface: backgroundColor,
         error: errorColor,
       ),
       fontFamily: 'Poppins',
@@ -128,7 +127,7 @@ class AppTheme {
       cardTheme: CardThemeData(
         color: surfaceColor,
         elevation: 2,
-        shadowColor: Colors.black.withOpacity(0.08),
+        shadowColor: Colors.black.withValues(alpha: 0.08),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),

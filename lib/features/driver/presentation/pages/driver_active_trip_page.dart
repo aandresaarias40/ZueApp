@@ -325,7 +325,7 @@ class _DriverActiveTripPageState extends State<DriverActiveTripPage> {
               width: 72,
               height: 72,
               decoration: BoxDecoration(
-                color: AppTheme.successColor.withOpacity(0.12),
+                color: AppTheme.successColor.withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.check_circle,
@@ -375,7 +375,7 @@ class _StatusBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: (config['color'] as Color).withOpacity(0.1),
+        color: (config['color'] as Color).withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(

@@ -42,7 +42,12 @@ service cloud.firestore {
       );
       allow create: if isAuth() && request.resource.data.passengerId == request.auth.uid;
       allow update: if isAuth() && (
-        resource.data.driverId == request.auth.uid ||
+        // A. El pasajero del viaje puede cancelarlo o calificarlo
+        (resource.data.passengerId == request.auth.uid) ||
+        // B. El conductor asignado puede actualizar el estado
+        (resource.data.driverId == request.auth.uid) ||
+        // C. Un conductor libre puede aceptar un viaje sin conductor asignado
+        (!('driverId' in resource.data) && request.resource.data.driverId == request.auth.uid) ||
         isAdmin()
       );
       allow delete: if isAdmin();
@@ -55,7 +60,7 @@ service cloud.firestore {
       allow read:   if isAuth() && (
         resource.data.driverId == request.auth.uid || isAdmin()
       );
-      allow create: if isAuth();   // conductor autenticado crea su pago
+      allow create: if isAuth() && request.resource.data.driverId == request.auth.uid;
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
@@ -91,8 +96,9 @@ service cloud.firestore {
     // Escritura: conductor crea su propia identidad al registrarse (create).
     //            Solo admin puede actualizar o eliminar.
     match /driver_identities/{identityId} {
-      allow read:   if isAuth();
-      allow create: if isAuth();
+      allow get:    if isAuth(); // Verificar duplicado al registrarse
+      allow list:   if isAdmin(); // Bloquea descarga masiva de datos personales
+      allow create: if isAuth() && request.resource.data.driverId == request.auth.uid;
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }

@@ -48,7 +48,7 @@ class _TripHistoryPageState extends State<TripHistoryPage> {
                   children: [
                     Icon(Icons.error_outline,
                         size: 64,
-                        color: AppTheme.textSecondary.withOpacity(0.4)),
+                        color: AppTheme.textSecondary.withValues(alpha: 0.4)),
                     const SizedBox(height: 16),
                     Text(
                       'No se pudo cargar el historial',
@@ -87,7 +87,7 @@ class _TripHistoryPageState extends State<TripHistoryPage> {
                   children: [
                     Icon(Icons.directions_car_outlined,
                         size: 80,
-                        color: AppTheme.textSecondary.withOpacity(0.4)),
+                        color: AppTheme.textSecondary.withValues(alpha: 0.4)),
                     const SizedBox(height: 16),
                     Text(
                       'No tienes viajes aún',
@@ -140,7 +140,7 @@ class _TripHistoryCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
           ),
         ],
@@ -156,8 +156,8 @@ class _TripHistoryCard extends StatelessWidget {
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: isCompleted
-                      ? AppTheme.successColor.withOpacity(0.1)
-                      : AppTheme.errorColor.withOpacity(0.1),
+                      ? AppTheme.successColor.withValues(alpha: 0.1)
+                      : AppTheme.errorColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(

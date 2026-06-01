@@ -2,7 +2,6 @@ import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../models/user_model.dart';
-import '../../../services/auth_service.dart';
 import '../data/repositories/auth_repository_impl.dart';
 
 // Events

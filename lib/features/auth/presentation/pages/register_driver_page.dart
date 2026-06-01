@@ -77,7 +77,7 @@ class _RegisterDriverPageState extends State<RegisterDriverPage> {
                   width: 72,
                   height: 72,
                   decoration: BoxDecoration(
-                    color: AppTheme.successColor.withOpacity(0.12),
+                    color: AppTheme.successColor.withValues(alpha: 0.12),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(Icons.check_circle,
@@ -432,7 +432,7 @@ class _SectionHeader extends StatelessWidget {
           width: 36,
           height: 36,
           decoration: BoxDecoration(
-            color: AppTheme.primaryColor.withOpacity(0.1),
+            color: AppTheme.primaryColor.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Icon(icon, color: AppTheme.primaryColor, size: 20),
@@ -473,7 +473,7 @@ class _VehicleTypeCard extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 16),
           decoration: BoxDecoration(
             color: isSelected
-                ? AppTheme.primaryColor.withOpacity(0.1)
+                ? AppTheme.primaryColor.withValues(alpha: 0.1)
                 : Colors.white,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
@@ -534,7 +534,7 @@ class _PlanCard extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: isSelected
-              ? AppTheme.primaryColor.withOpacity(0.07)
+              ? AppTheme.primaryColor.withValues(alpha: 0.07)
               : Colors.white,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(

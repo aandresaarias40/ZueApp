@@ -57,7 +57,9 @@ class _PassengerHomePageState extends State<PassengerHomePage> {
       }
 
       final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
 
       if (!mounted) return;
@@ -136,7 +138,7 @@ class _PassengerHomePageState extends State<PassengerHomePage> {
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
+                          color: Colors.black.withValues(alpha: 0.1),
                           blurRadius: 8,
                         ),
                       ],
@@ -188,7 +190,7 @@ class _PassengerHomePageState extends State<PassengerHomePage> {
                               borderRadius: BorderRadius.circular(20),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.1),
+                                  color: Colors.black.withValues(alpha: 0.1),
                                   blurRadius: 8,
                                 ),
                               ],
@@ -390,7 +392,7 @@ class _FloatingButton extends StatelessWidget {
           shape: BoxShape.circle,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: Colors.black.withValues(alpha: 0.1),
               blurRadius: 8,
             ),
           ],

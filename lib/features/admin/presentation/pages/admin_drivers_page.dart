@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../models/driver_model.dart';
@@ -180,7 +179,7 @@ class _DriverList extends StatelessWidget {
               children: [
                 Icon(Icons.person_off_outlined,
                     size: 60,
-                    color: AppTheme.textSecondary.withOpacity(0.3)),
+                    color: AppTheme.textSecondary.withValues(alpha: 0.3)),
                 const SizedBox(height: 12),
                 Text(
                   'No hay conductores',
@@ -230,7 +229,7 @@ class _DriverCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isSuspended
-              ? AppTheme.errorColor.withOpacity(0.3)
+              ? AppTheme.errorColor.withValues(alpha: 0.3)
               : AppTheme.dividerColor,
         ),
       ),
@@ -242,8 +241,8 @@ class _DriverCard extends StatelessWidget {
               CircleAvatar(
                 radius: 24,
                 backgroundColor: isSuspended
-                    ? AppTheme.errorColor.withOpacity(0.1)
-                    : AppTheme.primaryColor.withOpacity(0.1),
+                    ? AppTheme.errorColor.withValues(alpha: 0.1)
+                    : AppTheme.primaryColor.withValues(alpha: 0.1),
                 child: Text(
                   driver.name.isNotEmpty ? driver.name[0].toUpperCase() : 'D',
                   style: TextStyle(
@@ -275,7 +274,7 @@ class _DriverCard extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 7, vertical: 2),
                           decoration: BoxDecoration(
-                            color: AppTheme.primaryColor.withOpacity(0.1),
+                            color: AppTheme.primaryColor.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
@@ -307,8 +306,8 @@ class _DriverCard extends StatelessWidget {
                     const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: isOnline
-                      ? AppTheme.successColor.withOpacity(0.1)
-                      : AppTheme.textSecondary.withOpacity(0.1),
+                      ? AppTheme.successColor.withValues(alpha: 0.1)
+                      : AppTheme.textSecondary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
@@ -331,10 +330,10 @@ class _DriverCard extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
               color: isSuspended
-                  ? AppTheme.errorColor.withOpacity(0.05)
+                  ? AppTheme.errorColor.withValues(alpha: 0.05)
                   : driver.isSubscriptionActive
-                      ? AppTheme.successColor.withOpacity(0.05)
-                      : AppTheme.warningColor.withOpacity(0.05),
+                      ? AppTheme.successColor.withValues(alpha: 0.05)
+                      : AppTheme.warningColor.withValues(alpha: 0.05),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Row(

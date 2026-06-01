@@ -176,7 +176,7 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
                               shape: BoxShape.circle,
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.1),
+                                  color: Colors.black.withValues(alpha: 0.1),
                                   blurRadius: 8,
                                 ),
                               ],
@@ -437,7 +437,7 @@ class _FareInfo extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: AppTheme.primaryColor.withOpacity(0.08),
+        color: AppTheme.primaryColor.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(

@@ -63,7 +63,7 @@ class _SplashPageState extends State<SplashPage>
                           borderRadius: BorderRadius.circular(24),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.2),
+                              color: Colors.black.withValues(alpha: 0.2),
                               blurRadius: 20,
                               offset: const Offset(0, 10),
                             ),
@@ -98,7 +98,7 @@ class _SplashPageState extends State<SplashPage>
                         style: TextStyle(
                           fontFamily: 'Poppins',
                           fontSize: 16,
-                          color: Colors.white.withOpacity(0.85),
+                          color: Colors.white.withValues(alpha: 0.85),
                           letterSpacing: 1,
                         ),
                       ),
@@ -107,7 +107,7 @@ class _SplashPageState extends State<SplashPage>
                         width: 40,
                         height: 40,
                         child: CircularProgressIndicator(
-                          color: Colors.white.withOpacity(0.8),
+                          color: Colors.white.withValues(alpha: 0.8),
                           strokeWidth: 3,
                         ),
                       ),

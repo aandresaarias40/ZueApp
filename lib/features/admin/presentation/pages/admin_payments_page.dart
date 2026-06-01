@@ -85,7 +85,7 @@ class _PaymentList extends StatelessWidget {
               children: [
                 Icon(Icons.receipt_long_outlined,
                     size: 60,
-                    color: AppTheme.textSecondary.withOpacity(0.3)),
+                    color: AppTheme.textSecondary.withValues(alpha: 0.3)),
                 const SizedBox(height: 12),
                 Text(
                   'No hay pagos',
@@ -108,7 +108,7 @@ class _PaymentList extends StatelessWidget {
               margin: const EdgeInsets.all(16),
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: AppTheme.successColor.withOpacity(0.1),
+                color: AppTheme.successColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Row(
@@ -187,7 +187,7 @@ class _PaymentCard extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: statusConfig['color'].withOpacity(0.1),
+              color: statusConfig['color'].withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(statusConfig['icon'],
@@ -241,7 +241,7 @@ class _PaymentCard extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: statusConfig['color'].withOpacity(0.1),
+                  color: statusConfig['color'].withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(

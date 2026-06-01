@@ -79,7 +79,9 @@ class _DriverHomePageState extends State<DriverHomePage> {
 
       // Obtener posición actual
       final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
 
       if (!mounted) return;
@@ -578,7 +580,7 @@ class _StatusChip extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 8),
         ],
       ),
       child: Row(
@@ -643,7 +645,7 @@ class _MapButton extends StatelessWidget {
           color: Colors.white,
           shape: BoxShape.circle,
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8),
+            BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 8),
           ],
         ),
         child: Icon(icon, size: 22, color: AppTheme.textPrimary),
@@ -706,7 +708,7 @@ class _BottomPanel extends StatelessWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: isDriverLoading
-                    ? AppTheme.textSecondary.withOpacity(0.3)
+                    ? AppTheme.textSecondary.withValues(alpha: 0.3)
                     : isOnline
                         ? AppTheme.successColor
                         : AppTheme.primaryColor,
@@ -715,7 +717,7 @@ class _BottomPanel extends StatelessWidget {
                     color: (isOnline
                             ? AppTheme.successColor
                             : AppTheme.primaryColor)
-                        .withOpacity(isDriverLoading ? 0 : 0.35),
+                        .withValues(alpha: isDriverLoading ? 0 : 0.35),
                     blurRadius: 20,
                     spreadRadius: 4,
                   ),
@@ -788,7 +790,7 @@ class _BottomPanel extends StatelessWidget {
                   children: [
                     Icon(Icons.search,
                         size: 20,
-                        color: AppTheme.textSecondary.withOpacity(0.5)),
+                        color: AppTheme.textSecondary.withValues(alpha: 0.5)),
                     const SizedBox(width: 8),
                     Text(
                       'Esperando solicitudes de viaje...',

@@ -23,7 +23,6 @@ class _RequestTripPageState extends State<RequestTripPage> {
   Position? _originPosition;
   String _originAddress = 'Obteniendo ubicación...';
   String _originCity = '';        // Ciudad actual del pasajero
-  String _originLocality = '';    // Municipio/barrio para sesgar geocoding
   String _destinationAddress = '';
   double? _destinationLat;
   double? _destinationLng;
@@ -65,7 +64,6 @@ class _RequestTripPageState extends State<RequestTripPage> {
         final adminArea = p.administrativeArea ?? '';
         setState(() {
           _originCity = locality.isNotEmpty ? locality : adminArea;
-          _originLocality = locality;
           _originAddress =
               '${p.street ?? ''}, $locality'.trim().replaceAll(RegExp('^,\\s*'), '');
         });
@@ -536,7 +534,7 @@ class _RequestTripPageState extends State<RequestTripPage> {
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.06),
+                        color: Colors.black.withValues(alpha: 0.06),
                         blurRadius: 10,
                       ),
                     ],

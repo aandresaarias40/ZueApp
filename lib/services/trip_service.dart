@@ -226,7 +226,6 @@ class TripService {
         .get();
     if (driverDoc.exists) {
       final data = driverDoc.data() as Map<String, dynamic>;
-      final totalTrips = (data['totalTrips'] ?? 0) as int;
       // ratedTrips: cuántos viajes ya tienen calificación acumulada en rating
       final ratedTrips = (data['ratedTrips'] ?? 0) as int;
       final currentRating = ratedTrips > 0

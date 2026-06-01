@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../models/trip_model.dart';
-import '../../../../models/driver_model.dart';
 import '../../../../services/trip_service.dart';
 import '../../../../services/driver_service.dart';
 
@@ -38,7 +36,7 @@ class _AdminTripsPageState extends State<AdminTripsPage> {
                 children: [
                   Icon(Icons.directions_car_outlined,
                       size: 60,
-                      color: AppTheme.textSecondary.withOpacity(0.3)),
+                      color: AppTheme.textSecondary.withValues(alpha: 0.3)),
                   const SizedBox(height: 12),
                   Text('No hay viajes activos',
                       style: TextStyle(color: AppTheme.textSecondary)),
@@ -111,7 +109,7 @@ class _AdminTripsPageState extends State<AdminTripsPage> {
                     return ListTile(
                       leading: CircleAvatar(
                         backgroundColor:
-                            AppTheme.primaryColor.withOpacity(0.1),
+                            AppTheme.primaryColor.withValues(alpha: 0.1),
                         child: Text(
                           driver.name[0].toUpperCase(),
                           style: const TextStyle(
@@ -171,7 +169,7 @@ class _TripAdminCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isUnassigned
-              ? AppTheme.warningColor.withOpacity(0.5)
+              ? AppTheme.warningColor.withValues(alpha: 0.5)
               : AppTheme.dividerColor,
           width: isUnassigned ? 1.5 : 1,
         ),
@@ -185,7 +183,7 @@ class _TripAdminCard extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: statusColor.withOpacity(0.1),
+                  color: statusColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
