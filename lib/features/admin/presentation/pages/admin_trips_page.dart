@@ -60,6 +60,9 @@ class _AdminTripsPageState extends State<AdminTripsPage> {
   }
 
   void _showAssignDriverDialog(BuildContext context, TripModel trip) async {
+    final navigator = Navigator.of(context);
+    final screenHeight = MediaQuery.of(context).size.height;
+
     final drivers = await _driverService.getNearbyDrivers(
       lat: trip.originLat,
       lng: trip.originLng,
@@ -67,81 +70,82 @@ class _AdminTripsPageState extends State<AdminTripsPage> {
 
     if (!mounted) return;
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => Container(
-        height: MediaQuery.of(context).size.height * 0.6,
-        padding: const EdgeInsets.all(20),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Asignar conductor',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '${drivers.length} conductor(es) disponible(s) cerca',
-              style: TextStyle(
-                  fontSize: 13, color: AppTheme.textSecondary),
-            ),
-            const SizedBox(height: 16),
-            if (drivers.isEmpty)
-              Center(
-                child: Text(
-                  'No hay conductores disponibles en este momento',
-                  style: TextStyle(color: AppTheme.textSecondary),
-                  textAlign: TextAlign.center,
-                ),
-              )
-            else
-              Expanded(
-                child: ListView.builder(
-                  itemCount: drivers.length,
-                  itemBuilder: (_, i) {
-                    final driver = drivers[i];
-                    return ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor:
-                            AppTheme.primaryColor.withValues(alpha: 0.1),
-                        child: Text(
-                          driver.name[0].toUpperCase(),
-                          style: const TextStyle(
-                              color: AppTheme.primaryColor,
-                              fontWeight: FontWeight.w700),
-                        ),
-                      ),
-                      title: Text(driver.name),
-                      subtitle: Text(
-                          '${driver.vehiclePlate} · ${driver.vehicleType == 'car' ? 'Carro' : 'Moto'}${driver.hasRating ? ' · ⭐ ${driver.rating.toStringAsFixed(1)}' : ''}'),
-                      trailing: ElevatedButton(
-                        onPressed: () async {
-                          await _tripService.manuallyAssignTrip(
-                            tripId: trip.id,
-                            driverId: driver.id,
-                            driverName: driver.name,
-                            driverPhone: driver.phone,
-                            vehiclePlate: driver.vehiclePlate,
-                            vehicleType: driver.vehicleType,
-                          );
-                          if (mounted) Navigator.pop(context);
-                        },
-                        style: ElevatedButton.styleFrom(
-                          minimumSize: const Size(80, 36),
-                        ),
-                        child: const Text('Asignar'),
-                      ),
-                    );
-                  },
-                ),
+    navigator.push(
+      ModalBottomSheetRoute(
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => Container(
+          height: screenHeight * 0.6,
+          padding: const EdgeInsets.all(20),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Asignar conductor',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
               ),
-          ],
+              const SizedBox(height: 4),
+              Text(
+                '${drivers.length} conductor(es) disponible(s) cerca',
+                style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+              ),
+              const SizedBox(height: 16),
+              if (drivers.isEmpty)
+                Center(
+                  child: Text(
+                    'No hay conductores disponibles en este momento',
+                    style: TextStyle(color: AppTheme.textSecondary),
+                    textAlign: TextAlign.center,
+                  ),
+                )
+              else
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: drivers.length,
+                    itemBuilder: (_, i) {
+                      final driver = drivers[i];
+                      return ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor:
+                              AppTheme.primaryColor.withValues(alpha: 0.1),
+                          child: Text(
+                            driver.name[0].toUpperCase(),
+                            style: const TextStyle(
+                                color: AppTheme.primaryColor,
+                                fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                        title: Text(driver.name),
+                        subtitle: Text(
+                            '${driver.vehiclePlate} · ${driver.vehicleType == 'car' ? 'Carro' : 'Moto'}${driver.hasRating ? ' · ⭐ ${driver.rating.toStringAsFixed(1)}' : ''}'),
+                        trailing: ElevatedButton(
+                          onPressed: () async {
+                            final nav = Navigator.of(context);
+                            await _tripService.manuallyAssignTrip(
+                              tripId: trip.id,
+                              driverId: driver.id,
+                              driverName: driver.name,
+                              driverPhone: driver.phone,
+                              vehiclePlate: driver.vehiclePlate,
+                              vehicleType: driver.vehicleType,
+                            );
+                            nav.pop();
+                          },
+                          style: ElevatedButton.styleFrom(
+                            minimumSize: const Size(80, 36),
+                          ),
+                          child: const Text('Asignar'),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );

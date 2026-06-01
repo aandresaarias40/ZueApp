@@ -54,13 +54,15 @@ service cloud.firestore {
     }
 
     // ── Payments ──────────────────────────────────────────────────────────────
-    // El conductor crea su propio registro de pago.
+    // Solo conductores registrados pueden crear su propio registro de pago.
     // Actualización/aprobación: solo webhook via Admin SDK (bypasea reglas).
     match /payments/{paymentId} {
       allow read:   if isAuth() && (
         resource.data.driverId == request.auth.uid || isAdmin()
       );
-      allow create: if isAuth() && request.resource.data.driverId == request.auth.uid;
+      allow create: if isAuth()
+        && request.resource.data.driverId == request.auth.uid
+        && exists(/databases/$(database)/documents/drivers/$(request.auth.uid));
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }

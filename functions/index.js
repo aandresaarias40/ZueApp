@@ -69,6 +69,40 @@ const OPTS = {
   invoker: "public",        // permite llamadas HTTP sin token IAM de Google
 };
 
+// ── Logging estructurado ───────────────────────────────────────────────────────
+// En producción solo se emiten warn/error. En sandbox se incluye info/debug.
+const log = {
+  info:  (...a) => { if (WOMPI_USE_SANDBOX) console.info(...a);  },
+  debug: (...a) => { if (WOMPI_USE_SANDBOX) console.debug(...a); },
+  warn:  (...a) => console.warn(...a),
+  error: (...a) => console.error(...a),
+};
+
+// ── Dominios permitidos en CORS ────────────────────────────────────────────────
+const ALLOWED_ORIGINS = [
+  "https://zue-app.web.app",
+  "https://zue-app.firebaseapp.com",
+];
+
+// ── Rate limiting distribuido en Redis (por IP) ────────────────────────────────
+// Usa INCR + EXPIRE para contar peticiones por IP en una ventana de 60 s.
+// Al estar en Redis es efectivo incluso con múltiples instancias de Cloud Run.
+const RATE_LIMIT_MAX    = 20;  // máx peticiones por ventana
+const RATE_LIMIT_WINDOW = 60;  // ventana en segundos
+
+async function isRateLimited(ip) {
+  try {
+    const redis = getRedis();
+    const key   = `rate:webhook:${ip}`;
+    const count = await redis.incr(key);
+    if (count === 1) await redis.expire(key, RATE_LIMIT_WINDOW);
+    return count > RATE_LIMIT_MAX;
+  } catch {
+    // Si Redis falla, no bloqueamos (fail-open)
+    return false;
+  }
+}
+
 // ── Verificar token Firebase del cliente ──────────────────────────────────────
 async function verifyToken(req) {
   const auth = (req.headers.authorization || "");
@@ -80,10 +114,13 @@ async function verifyToken(req) {
   }
 }
 
-function setCors(res) {
-  res.set("Access-Control-Allow-Origin", "*");
+function setCors(req, res) {
+  const origin = req.headers.origin || "";
+  const allowed = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  res.set("Access-Control-Allow-Origin", allowed);
   res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.set("Vary", "Origin");
 }
 
 // =============================================================================
@@ -91,7 +128,7 @@ function setCors(res) {
 // Body: { driverId, lat, lng, status? }
 // =============================================================================
 exports.updateDriverLocation = onRequest(OPTS, async (req, res) => {
-  setCors(res);
+  setCors(req, res);
   if (req.method === "OPTIONS") return res.status(204).send("");
 
   const user = await verifyToken(req);
@@ -120,7 +157,7 @@ exports.updateDriverLocation = onRequest(OPTS, async (req, res) => {
 // Body: { lat, lng, radiusKm?, limit? }
 // =============================================================================
 exports.getNearbyDrivers = onRequest(OPTS, async (req, res) => {
-  setCors(res);
+  setCors(req, res);
   if (req.method === "OPTIONS") return res.status(204).send("");
 
   const user = await verifyToken(req);
@@ -154,7 +191,7 @@ exports.getNearbyDrivers = onRequest(OPTS, async (req, res) => {
 // Body: { driverId }
 // =============================================================================
 exports.setDriverOffline = onRequest(OPTS, async (req, res) => {
-  setCors(res);
+  setCors(req, res);
   if (req.method === "OPTIONS") return res.status(204).send("");
 
   const user = await verifyToken(req);
@@ -187,33 +224,35 @@ exports.setDriverOffline = onRequest(OPTS, async (req, res) => {
 // Docs de firma: https://docs.wompi.co/docs/colombia/wompi-webhooks/
 // =============================================================================
 exports.wompiWebhook = onRequest({ ...OPTS, invoker: "public" }, async (req, res) => {
-  setCors(res);
+  setCors(req, res);
   if (req.method === "OPTIONS") return res.status(204).send("");
   if (req.method !== "POST")    return res.status(405).json({ error: "Metodo no permitido" });
 
+  // 0. Rate limiting por IP (distribuido en Redis)
+  const clientIp = req.headers["x-forwarded-for"]?.split(",")[0].trim() || req.ip || "unknown";
+  if (await isRateLimited(clientIp)) {
+    log.warn("wompiWebhook: rate limit excedido", { ip: clientIp });
+    return res.status(429).json({ error: "Demasiadas peticiones" });
+  }
+
   // 1. Verificar firma de Wompi
-  // Wompi envia en headers: x-wompi-timestamp y x-wompi-checksum
-  // checksum = SHA256( transactionId + timestamp + privateKey )
   const timestamp = req.headers["x-wompi-timestamp"] || "";
   const checksum  = req.headers["x-wompi-checksum"]  || "";
 
   if (!checksum) {
-    console.warn("wompiWebhook: falta x-wompi-checksum");
+    log.warn("wompiWebhook: falta x-wompi-checksum");
     return res.status(401).json({ error: "Firma requerida" });
   }
 
   if (!WOMPI_EVENTS_SECRET) {
-    console.error("wompiWebhook: WOMPI_EVENTS_SECRET no configurada");
+    log.error("wompiWebhook: WOMPI_EVENTS_SECRET no configurada");
     return res.status(500).json({ error: "Configuracion incompleta del servidor" });
   }
 
   // 1b. Validar que el timestamp no sea mayor a 24 horas (anti-replay por tiempo).
-  // Wompi reintenta el webhook con el timestamp original hasta por varias horas;
-  // una ventana de 5 min rechazaba reintentos legítimos tras caídas de red.
-  // La protección real contra replay se delega al checksum único en Redis (paso 1c).
   const tsNum = parseInt(timestamp, 10);
   if (!tsNum || Math.abs(Date.now() / 1000 - tsNum) > 86400) {
-    console.warn("wompiWebhook: timestamp fuera de ventana", { timestamp });
+    log.warn("wompiWebhook: timestamp fuera de ventana", { timestamp });
     return res.status(401).json({ error: "Timestamp invalido o expirado" });
   }
 
@@ -226,25 +265,22 @@ exports.wompiWebhook = onRequest({ ...OPTS, invoker: "public" }, async (req, res
   const expected = crypto.createHash("sha256").update(toSign).digest("hex");
 
   if (expected !== checksum) {
-    console.warn("wompiWebhook: firma invalida", { expected, checksum });
+    log.warn("wompiWebhook: firma invalida");
     return res.status(401).json({ error: "Firma invalida" });
   }
 
   // 1c. Anti-replay: verificar que este checksum exacto no fue procesado antes.
-  // Se guarda en Redis con TTL de 10 min (más que la ventana de 5 min).
   const replayKey = `wompi:seen:${checksum}`;
   let redis;
   try {
     redis = getRedis();
     const alreadySeen = await redis.set(replayKey, "1", "EX", 600, "NX");
     if (alreadySeen === null) {
-      // NX falló → la clave ya existía → es un reenvío
-      console.warn("wompiWebhook: replay detectado para checksum", checksum);
+      log.warn("wompiWebhook: replay detectado");
       return res.status(200).json({ ok: true, ignored: "replay detectado" });
     }
   } catch (redisErr) {
-    // Si Redis falla, logueamos pero NO bloqueamos (fail-open para no perder pagos reales).
-    console.error("wompiWebhook: error al verificar replay en Redis", redisErr.message);
+    log.error("wompiWebhook: error al verificar replay en Redis", redisErr.message);
   }
 
   // 2. Ignorar eventos que no sean transaction.updated
@@ -255,11 +291,11 @@ exports.wompiWebhook = onRequest({ ...OPTS, invoker: "public" }, async (req, res
 
   // 3. Extraer datos de la transaccion
   const tx        = event.data.transaction;
-  const txStatus  = tx.status;    // APPROVED | DECLINED | PENDING | ERROR | VOIDED
-  const reference = tx.reference; // "ZUE-XXXXXX-XXXXXXXX"
+  const txStatus  = tx.status;
+  const reference = tx.reference;
 
   if (!txId || !txStatus || !reference) {
-    console.error("wompiWebhook: payload incompleto", { txId, txStatus, reference });
+    log.error("wompiWebhook: payload incompleto", { txId, txStatus, reference });
     return res.status(400).json({ error: "Payload incompleto" });
   }
 
@@ -272,8 +308,7 @@ exports.wompiWebhook = onRequest({ ...OPTS, invoker: "public" }, async (req, res
     .get();
 
   if (paymentsSnap.empty) {
-    // No es un error nuestro — responder 200 para que Wompi no reintente
-    console.warn("wompiWebhook: pago no encontrado para referencia", reference);
+    log.warn("wompiWebhook: pago no encontrado para referencia", reference);
     return res.status(200).json({ ok: true, warning: "Pago no encontrado" });
   }
 
@@ -281,13 +316,12 @@ exports.wompiWebhook = onRequest({ ...OPTS, invoker: "public" }, async (req, res
   const paymentData = paymentsSnap.docs[0].data();
   const paymentId   = paymentsSnap.docs[0].id;
 
-  // Idempotencia: si ya fue procesado, ignorar
   if (paymentData.status === "approved" || paymentData.status === "declined") {
     return res.status(200).json({ ok: true, ignored: "ya procesado" });
   }
 
   const driverId = paymentData.driverId;
-  const plan     = paymentData.plan;   // "weekly" | "monthly"
+  const plan     = paymentData.plan;
   const amount   = paymentData.amount;
 
   if (txStatus === "APPROVED") {
@@ -299,7 +333,6 @@ exports.wompiWebhook = onRequest({ ...OPTS, invoker: "public" }, async (req, res
     const subRef = db.collection(COL_SUBSCRIPTIONS).doc();
     const batch  = db.batch();
 
-    // Crear suscripcion activa
     batch.set(subRef, {
       driverId,
       driverName:    paymentData.driverName,
@@ -313,15 +346,13 @@ exports.wompiWebhook = onRequest({ ...OPTS, invoker: "public" }, async (req, res
       createdAt:     now,
     });
 
-    // Marcar pago como aprobado
     batch.update(paymentRef, {
-      status:             "approved",
-      subscriptionId:     subRef.id,
-      approvedAt:         admin.firestore.Timestamp.now(),
-      transactionId:      txId,
+      status:         "approved",
+      subscriptionId: subRef.id,
+      approvedAt:     admin.firestore.Timestamp.now(),
+      transactionId:  txId,
     });
 
-    // Activar suscripcion en el documento del conductor
     const driverRef = db.collection(COL_DRIVERS).doc(driverId);
     batch.update(driverRef, {
       subscriptionStatus: "active",
@@ -331,22 +362,21 @@ exports.wompiWebhook = onRequest({ ...OPTS, invoker: "public" }, async (req, res
     });
 
     await batch.commit();
-    console.log("wompiWebhook: pago aprobado", { txId });
+    log.info("wompiWebhook: pago aprobado", { txId });
     return res.status(200).json({ ok: true, status: "approved" });
 
   } else if (txStatus === "DECLINED" || txStatus === "VOIDED" || txStatus === "ERROR") {
     await paymentRef.update({
-      status:    "declined",
-      failedAt:  admin.firestore.Timestamp.now(),
+      status:        "declined",
+      failedAt:      admin.firestore.Timestamp.now(),
       txStatus,
       transactionId: txId,
     });
-    console.log("wompiWebhook: pago rechazado", { txStatus, txId });
+    log.info("wompiWebhook: pago rechazado", { txStatus, txId });
     return res.status(200).json({ ok: true, status: "declined" });
 
   } else {
-    // PENDING — Wompi reintentará cuando cambie el estado
-    console.log("wompiWebhook: pago pendiente", { txStatus, txId });
+    log.info("wompiWebhook: pago pendiente", { txStatus, txId });
     return res.status(200).json({ ok: true, status: "pending" });
   }
 });
@@ -368,7 +398,7 @@ const WOMPI_REDIRECT_URL = "https://zue-app.web.app/payment/callback";
 // Body: { driverId, plan, financialInstitutionCode, reference, amountInCents }
 // =============================================================================
 exports.createPSETransaction = onRequest(OPTS, async (req, res) => {
-  setCors(res);
+  setCors(req, res);
   if (req.method === "OPTIONS") return res.status(204).send("");
   if (req.method !== "POST")    return res.status(405).json({ error: "Método no permitido" });
 
@@ -384,7 +414,7 @@ exports.createPSETransaction = onRequest(OPTS, async (req, res) => {
     return res.status(403).json({ error: "No puedes crear transacciones para otro conductor" });
   }
   if (!WOMPI_INTEGRITY_SECRET || !WOMPI_PUBLIC_KEY) {
-    console.error("createPSETransaction: variables de entorno Wompi no configuradas");
+    log.error("createPSETransaction: variables de entorno Wompi no configuradas");
     return res.status(500).json({ error: "Configuración incompleta del servidor" });
   }
 
@@ -401,11 +431,11 @@ exports.createPSETransaction = onRequest(OPTS, async (req, res) => {
 
   // Validar campos obligatorios del conductor antes de llamar a Wompi
   if (!legalId) {
-    console.error("createPSETransaction: cédula/licenseNumber del conductor vacío", { driverId });
+    log.error("createPSETransaction: cédula/licenseNumber del conductor vacío");
     return res.status(400).json({ error: "Perfil incompleto: se requiere cédula del conductor" });
   }
   if (!driver.email) {
-    console.error("createPSETransaction: email del conductor vacío", { driverId });
+    log.error("createPSETransaction: email del conductor vacío");
     return res.status(400).json({ error: "Perfil incompleto: se requiere email del conductor" });
   }
 
@@ -416,9 +446,7 @@ exports.createPSETransaction = onRequest(OPTS, async (req, res) => {
   const integrityHash = crypto.createHash("sha256").update(signatureStr).digest("hex");
 
   // Log de inicio solo en sandbox para no exponer datos internos en producción
-  if (WOMPI_USE_SANDBOX) {
-    console.log("createPSETransaction: iniciando [sandbox]", { driverId, plan, reference, amountInt });
-  }
+  log.debug("createPSETransaction: iniciando", { driverId, plan, reference, amountInt });
 
   try {
     // 1. Obtener acceptance_token Y personal_data_auth_token de Wompi
@@ -427,7 +455,7 @@ exports.createPSETransaction = onRequest(OPTS, async (req, res) => {
     const merchantData = await merchantRes.json();
 
     if (!merchantData.data) {
-      console.error("createPSETransaction: respuesta merchants inesperada", JSON.stringify(merchantData));
+      log.error("createPSETransaction: respuesta merchants inesperada");
       return res.status(500).json({ error: "Error al obtener tokens de Wompi" });
     }
 
@@ -458,14 +486,11 @@ exports.createPSETransaction = onRequest(OPTS, async (req, res) => {
       signature: integrityHash,
     };
 
-  // Log del cuerpo de la transacción solo en sandbox
-  if (WOMPI_USE_SANDBOX) {
-    console.log("createPSETransaction: enviando a Wompi [sandbox]", JSON.stringify({
-      ...txBody,
-      acceptance_token:         "[redacted]",
-      personal_data_auth_token: "[redacted]",
-    }));
-  }
+  log.debug("createPSETransaction: enviando a Wompi", JSON.stringify({
+    ...txBody,
+    acceptance_token:         "[redacted]",
+    personal_data_auth_token: "[redacted]",
+  }));
 
     const txRes = await fetch(`${WOMPI_BASE_URL}/transactions`, {
       method: "POST",
@@ -479,7 +504,7 @@ exports.createPSETransaction = onRequest(OPTS, async (req, res) => {
     const txData = await txRes.json();
 
     if (!txRes.ok) {
-      console.error("Wompi PSE error:", JSON.stringify(txData));
+      log.error("createPSETransaction: error Wompi PSE", txRes.status);
       return res.status(txRes.status).json({ error: txData });
     }
 
@@ -497,27 +522,22 @@ exports.createPSETransaction = onRequest(OPTS, async (req, res) => {
         // ACH Colombia (operador de PSE) no tiene ambiente sandbox público.
         // Flujo sandbox: la transacción queda PENDING → ir a comercios.wompi.co
         // y aprobarla manualmente → webhook dispara → Firestore se actualiza.
-        console.warn("createPSETransaction: sandbox PSE sin async_payment_url (normal en sandbox)", {
-          transactionId, financialInstitutionCode,
-        });
+        log.warn("createPSETransaction: sandbox PSE sin async_payment_url (normal en sandbox)");
         return res.json({ transactionId, redirectUrl: null, sandboxMode: true });
       }
       // Producción: no debería ocurrir con un banco PSE válido
-      console.error("createPSETransaction: sin async_payment_url en producción", {
-        transactionId, financialInstitutionCode,
-        paymentMethodExtra: txData.data.payment_method?.extra,
-      });
+      log.error("createPSETransaction: sin async_payment_url en producción", { transactionId });
       return res.status(500).json({
         error: "El banco seleccionado no generó URL de pago.",
         transactionId,
       });
     }
 
-    console.log("createPSETransaction: transacción creada", { transactionId, plan });
+    log.info("createPSETransaction: transacción creada", { transactionId, plan });
     return res.json({ transactionId, redirectUrl });
 
   } catch (e) {
-    console.error("createPSETransaction error:", e.message);
+    log.error("createPSETransaction error:", e.message);
     return res.status(500).json({ error: "Error al crear transacción: " + e.message });
   }
 });
@@ -552,5 +572,5 @@ exports.cancelStaleTrips = onSchedule({
   });
 
   await batch.commit();
-  console.log(`cancelStaleTrips: ${stale.size} viaje(s) cancelados por timeout`);
+  log.info(`cancelStaleTrips: ${stale.size} viaje(s) cancelados por timeout`);
 });

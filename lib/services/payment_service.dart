@@ -127,10 +127,14 @@ class PaymentService {
       };
     } catch (e) {
       if (e is DioException) {
-        print('====== ERROR CLOUD FUNCTION / WOMPI ======');
-        print('Status: ${e.response?.statusCode}');
-        print('Error Data: ${e.response?.data}');
-        print('==========================================');
+        assert(() {
+          // ignore: avoid_print
+          print('====== ERROR CLOUD FUNCTION / WOMPI ======\n'
+              'Status: ${e.response?.statusCode}\n'
+              'Error Data: ${e.response?.data}\n'
+              '==========================================');
+          return true;
+        }());
       }
       rethrow;
     }

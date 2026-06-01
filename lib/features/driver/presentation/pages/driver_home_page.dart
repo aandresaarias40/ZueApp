@@ -137,7 +137,8 @@ class _DriverHomePageState extends State<DriverHomePage> {
   // Toggle conectado / desconectado
   // ─────────────────────────────────────────────────────────────────────────
   Future<void> _toggleOnlineStatus() async {
-    final driverState = context.read<DriverBloc>().state;
+    final driverBloc  = context.read<DriverBloc>();
+    final driverState = driverBloc.state;
     if (driverState is! DriverLoadedState) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -200,12 +201,12 @@ class _DriverHomePageState extends State<DriverHomePage> {
 
     setState(() => _isOnline = newStatus);
 
-    context.read<DriverBloc>().add(
-          ToggleDriverOnlineEvent(
-            driverId: driver.id,
-            isOnline: newStatus,
-          ),
-        );
+    driverBloc.add(
+      ToggleDriverOnlineEvent(
+        driverId: driver.id,
+        isOnline: newStatus,
+      ),
+    );
   }
 
   // ─────────────────────────────────────────────────────────────────────────
