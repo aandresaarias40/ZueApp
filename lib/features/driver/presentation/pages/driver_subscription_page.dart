@@ -622,9 +622,10 @@ class _PSEWebView extends StatefulWidget {
 }
 
 class _PSEWebViewState extends State<_PSEWebView> {
-  late final WebViewController _controller;
+  WebViewController? _controller;
   bool _isLoading = true;
   bool _captured = false; // evita disparar onRedirectCapture más de una vez
+  bool _blockedUrl = false; // URL inicial fuera de la lista permitida
 
   /// Dominios permitidos dentro del WebView de pago PSE.
   /// Solo se navegará a URLs cuyo host termine en uno de estos sufijos.
@@ -659,11 +660,12 @@ class _PSEWebViewState extends State<_PSEWebView> {
   void initState() {
     super.initState();
 
-    // Validar la URL inicial antes de cargarla
-    assert(
-      _isAllowedUrl(widget.url),
-      'WebView PSE: URL inicial fuera de dominios permitidos: ${widget.url}',
-    );
+    // Validar la URL inicial antes de cargarla — también en release.
+    // Si no pertenece a los dominios permitidos, no se carga nada.
+    if (!_isAllowedUrl(widget.url)) {
+      _blockedUrl = true;
+      return;
+    }
 
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
@@ -694,6 +696,27 @@ class _PSEWebViewState extends State<_PSEWebView> {
 
   @override
   Widget build(BuildContext context) {
+    if (_blockedUrl) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Pago PSE'),
+          leading: IconButton(
+            icon: const Icon(Icons.close),
+            onPressed: widget.onBack,
+          ),
+        ),
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Text(
+              'La URL de pago no es válida. Por seguridad, el pago fue cancelado. Intenta de nuevo.',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Pago PSE'),
@@ -705,7 +728,7 @@ class _PSEWebViewState extends State<_PSEWebView> {
       ),
       body: Stack(
         children: [
-          WebViewWidget(controller: _controller),
+          WebViewWidget(controller: _controller!),
           if (_isLoading)
             const Center(
               child: Column(

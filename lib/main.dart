@@ -11,9 +11,7 @@ import 'core/theme/app_theme.dart';
 import 'features/auth/bloc/auth_bloc.dart';
 import 'features/auth/data/repositories/auth_repository_impl.dart';
 import 'features/driver/bloc/driver_bloc.dart';
-import 'features/driver/data/repositories/driver_repository_impl.dart';
 import 'features/trips/bloc/trip_bloc.dart';
-import 'features/trips/data/repositories/trip_repository_impl.dart';
 import 'firebase_options.dart';
 
 void main() async {
@@ -76,12 +74,8 @@ class _ZueAppState extends State<ZueApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MultiRepositoryProvider(
-      providers: [
-        RepositoryProvider(create: (_) => AuthRepositoryImpl()),
-        RepositoryProvider(create: (_) => DriverRepositoryImpl()),
-        RepositoryProvider(create: (_) => TripRepositoryImpl()),
-      ],
+    return RepositoryProvider(
+      create: (_) => AuthRepositoryImpl(),
       child: MultiBlocProvider(
         providers: [
           BlocProvider(
@@ -89,16 +83,8 @@ class _ZueAppState extends State<ZueApp> {
               authRepository: context.read<AuthRepositoryImpl>(),
             )..add(AuthCheckStatusEvent()),
           ),
-          BlocProvider(
-            create: (context) => DriverBloc(
-              driverRepository: context.read<DriverRepositoryImpl>(),
-            ),
-          ),
-          BlocProvider(
-            create: (context) => TripBloc(
-              tripRepository: context.read<TripRepositoryImpl>(),
-            ),
-          ),
+          BlocProvider(create: (_) => DriverBloc()),
+          BlocProvider(create: (_) => TripBloc()),
         ],
         // BlocListener (no BlocBuilder) para que MaterialApp.router no se
         // recree en cada estado de auth y el ScaffoldMessenger sobreviva.

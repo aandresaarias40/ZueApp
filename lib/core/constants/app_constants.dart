@@ -1,20 +1,9 @@
 class AppConstants {
-  // App Info
-  static const String appName = 'Zue';
-  static const String appVersion = '1.0.0';
-  static const String appCountry = 'CO'; // Colombia
-  static const String appCurrency = 'COP';
-  static const String appCurrencySymbol = '\$';
-
   // Firestore Collections
   static const String usersCollection = 'users';
   static const String driversCollection = 'drivers';
   static const String tripsCollection = 'trips';
   static const String paymentsCollection = 'payments';
-  static const String subscriptionsCollection = 'subscriptions';
-  static const String notificationsCollection = 'notifications';
-  static const String adminCollection = 'admins';
-  static const String settingsCollection = 'settings';
 
   // User Roles
   static const String rolePassenger = 'passenger';
@@ -47,7 +36,6 @@ class AppConstants {
   static const String paymentStatusPending = 'pending';
   static const String paymentStatusApproved = 'approved';
   static const String paymentStatusDeclined = 'declined';
-  static const String paymentStatusFailed = 'failed';
 
   // Vehicle Types
   static const String vehicleCar = 'car';
@@ -75,47 +63,25 @@ class AppConstants {
   static const double defaultLat = 4.3478;  // Fusagasugá, Cundinamarca
   static const double defaultLng = -74.3649;
   static const double defaultZoom = 14.0;
-  static const double nearbyDriverRadius = 5000; // 5 km en metros
 
   // ── Redis / Upstash (telemetría GPS hot-path) ─────────────────────────────
-  // Obtén tus credenciales en https://console.upstash.com
-  // Dashboard → tu base de datos → REST API → copia endpoint y token.
-  // Deja redisEnabled = false para usar solo Firestore (comportamiento original).
-  static const bool   redisEnabled          = true;
-  // Credenciales Upstash almacenadas SOLO en Cloud Functions (functions/index.js)
-  // No incluir tokens aquí — el APK es público y puede ser decompilado.
-  static const String redisUpstashEndpoint  = '';   // unused — ver Cloud Functions
-  static const String redisUpstashToken     = '';   // unused — ver Cloud Functions
-  static const String redisDriverPosPrefix  = 'driver:pos:';       // HSET driver:pos:{id} lat lng ts
-  static const String redisOnlineDriversKey = 'drivers:online';    // SET de IDs online
-  static const String redisGeoKey           = 'drivers:geo';       // GEOADD/GEOSEARCH índice geoespacial
-  static const int    firestoreSyncIntervalSec = 30;               // sync Redis→Firestore cada 30 s
+  // Las credenciales Upstash viven SOLO en Cloud Functions (functions/index.js).
+  // redisEnabled = false → usar solo Firestore (comportamiento original).
+  static const bool redisEnabled = true;
+  static const int  firestoreSyncIntervalSec = 30; // sync Redis→Firestore cada 30 s
 
   // GPS / Location tracking (conductores en línea)
   // Resultado stress test: P50 = 15ms (excelente), P95 = 2079ms (burst inicial).
   // Aumentar filtros reduce 1.7M escrituras/día → ~345K (salvo movimiento constante).
   static const int gpsDistanceFilter = 50;        // metros mínimos de movimiento
   static const int gpsMinIntervalSeconds = 10;    // throttle: mínimo 10s entre writes
-  // Cuota Firestore (Plan Spark gratuito)
-  static const int firestoreSparkDailyWrites = 20000;
-  static const int firestoreSparkDailyReads  = 50000;
 
   // Timeouts & Limits
-  static const int tripRequestTimeout = 60; // segundos para que un conductor acepte
   static const int maxDriverSearchRadius = 10000; // 10 km
-  static const int maxActiveTripsPerDriver = 1;
   // Máx candidatos que Firestore devuelve antes del filtro haversine en cliente.
   // Limita el payload: O(50 docs) vs O(todos los online). El índice compuesto
   // isOnline+status resuelve el LIMIT en servidor sin table scan.
   static const int maxNearbyDriverFetch = 50;
-
-  // Shared Preferences Keys
-  static const String prefUserToken = 'user_token';
-  static const String prefUserId = 'user_id';
-  static const String prefUserRole = 'user_role';
-  static const String prefOnboardingDone = 'onboarding_done';
-  static const String prefThemeMode = 'theme_mode';
-  static const String prefNotifications = 'notifications_enabled';
 
   // Pagination
   static const int pageSize = 20;
@@ -127,12 +93,16 @@ class AppConstants {
   //      wompiSandboxPublicKey abajo.
   //   3. La llave PRIVADA (prv_test_...) va SOLO en functions/index.js
   //      como constante WOMPI_PRIVATE_KEY — NUNCA en este archivo.
-  //   4. Para producción: cambia wompiUseSandbox = false y agrega la llave
-  //      de producción en wompiProdPublicKey.
+  //   4. Para producción: compila con --dart-define=WOMPI_SANDBOX=false
+  //      (la llave de producción ya está en wompiProdPublicKey).
   //
   // ⚠️  NUNCA pongas la llave privada aquí — el APK puede ser decompilado.
 
-  static const bool wompiUseSandbox = true; // ← sandbox activo para pruebas
+  // Configurable por entorno SIN tocar código:
+  //   flutter build apk --dart-define=WOMPI_SANDBOX=false  → producción
+  //   (por defecto true = sandbox, seguro para desarrollo)
+  static const bool wompiUseSandbox =
+      bool.fromEnvironment('WOMPI_SANDBOX', defaultValue: true);
 
   // Llaves públicas (seguro incluirlas en el APK — solo inician transacciones)
   static const String wompiSandboxPublicKey =
@@ -168,14 +138,4 @@ class AppConstants {
   // Formato: https://{functionname}-avqcfqbgeq-uc.a.run.app
   static const String cfCreatePSETransaction =
       'https://createpsetransaction-avqcfqbgeq-uc.a.run.app';
-
-  // Assets Paths
-  static const String logoPath = 'assets/images/logo.png';
-  static const String logoWhitePath = 'assets/images/logo_white.png';
-  static const String splashAnimation = 'assets/animations/splash.json';
-  static const String emptyAnimation = 'assets/animations/empty.json';
-  static const String loadingAnimation = 'assets/animations/loading.json';
-  static const String successAnimation = 'assets/animations/success.json';
-  static const String carIcon = 'assets/icons/car_marker.png';
-  static const String motoIcon = 'assets/icons/moto_marker.png';
 }

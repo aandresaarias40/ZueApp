@@ -146,7 +146,9 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           return 'Error de autenticación (${e.code}).';
       }
     }
-    return 'Ocurrió un error. Intenta de nuevo.';
+    // AuthService lanza Exception con mensajes ya traducidos al español
+    final msg = e.toString().replaceFirst('Exception: ', '');
+    return msg.isNotEmpty ? msg : 'Ocurrió un error. Intenta de nuevo.';
   }
 
   Future<void> _onLogout(

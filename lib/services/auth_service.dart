@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/user_model.dart';
 import '../models/driver_model.dart';
 import '../core/constants/app_constants.dart';
+import 'location_telemetry_service.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -26,7 +27,7 @@ class AuthService {
       final uid = credential.user!.uid;
       return await getUserById(uid);
     } on FirebaseAuthException catch (e) {
-      throw _mapFirebaseAuthException(e);
+      throw Exception(_mapFirebaseAuthException(e));
     }
   }
 
@@ -64,7 +65,7 @@ class AuthService {
 
       return user;
     } on FirebaseAuthException catch (e) {
-      throw _mapFirebaseAuthException(e);
+      throw Exception(_mapFirebaseAuthException(e));
     }
   }
 
@@ -106,7 +107,7 @@ class AuthService {
         password: password,
       );
     } on FirebaseAuthException catch (e) {
-      throw _mapFirebaseAuthException(e);
+      throw Exception(_mapFirebaseAuthException(e));
     }
 
     final uid = credential.user!;
@@ -218,7 +219,7 @@ class AuthService {
       return driver;
     } on FirebaseAuthException catch (e) {
       await uid.delete();
-      throw _mapFirebaseAuthException(e);
+      throw Exception(_mapFirebaseAuthException(e));
     } catch (e) {
       await uid.delete();
       rethrow;
@@ -260,6 +261,11 @@ class AuthService {
             'status': AppConstants.driverStatusInactive,
             'updatedAt': FieldValue.serverTimestamp(),
           });
+          // Limpiar también el índice Redis (vía Cloud Function) para que el
+          // conductor desaparezca del mapa de inmediato y no tras el EXPIRE
+          // de 120 s. Debe ejecutarse ANTES de _auth.signOut() porque la CF
+          // requiere el ID Token del usuario aún autenticado.
+          await LocationTelemetryService().setDriverOffline(uid);
         }
       } catch (_) {
         // No bloquear el logout si Firestore falla

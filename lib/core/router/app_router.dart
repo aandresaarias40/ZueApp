@@ -20,7 +20,6 @@ import '../../features/admin/presentation/pages/admin_payments_page.dart';
 import '../../features/admin/presentation/pages/admin_trips_page.dart';
 import '../../features/auth/bloc/auth_bloc.dart';
 import '../../features/trips/bloc/trip_bloc.dart';
-import '../../features/trips/data/repositories/trip_repository_impl.dart';
 
 class AppRoutes {
   // Auth
@@ -83,13 +82,32 @@ class AppRouter {
 
         if (authState is AuthAuthenticatedState) {
           final user = authState.user;
-          if (isAuthRoute || isSplash) {
-            switch (user.role) {
+
+          String homeForRole(String role) {
+            switch (role) {
               case 'passenger': return AppRoutes.passengerHome;
               case 'driver':    return AppRoutes.driverHome;
               case 'admin':     return AppRoutes.adminDashboard;
               default:          return AppRoutes.login;
             }
+          }
+
+          if (isAuthRoute || isSplash) return homeForRole(user.role);
+
+          // ── Guardia de rol ──────────────────────────────────────────
+          // Cada usuario solo puede navegar a las rutas de su rol.
+          // (La protección de datos real está en las reglas de Firestore;
+          //  esto evita exponer pantallas ajenas en el cliente.)
+          final location = state.matchedLocation;
+          final requiredRole = location.startsWith('/admin')
+              ? 'admin'
+              : location.startsWith('/driver')
+                  ? 'driver'
+                  : location.startsWith('/passenger')
+                      ? 'passenger'
+                      : null;
+          if (requiredRole != null && user.role != requiredRole) {
+            return homeForRole(user.role);
           }
         }
         return null;
@@ -138,9 +156,7 @@ class AppRouter {
           path: AppRoutes.tripHistory,
           // BLoC propio para no contaminar el estado del home con el historial
           builder: (context, state) => BlocProvider(
-            create: (ctx) => TripBloc(
-              tripRepository: ctx.read<TripRepositoryImpl>(),
-            ),
+            create: (_) => TripBloc(),
             child: const TripHistoryPage(),
           ),
         ),

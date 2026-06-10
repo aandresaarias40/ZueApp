@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../services/auth_service.dart';
 import '../../bloc/auth_bloc.dart';
 import '../widgets/auth_text_field.dart';
 
@@ -33,6 +34,69 @@ class _LoginPageState extends State<LoginPage> {
             password: _passwordController.text,
           ));
     }
+  }
+
+  /// Recuperación de contraseña vía Firebase Auth.
+  Future<void> _onForgotPassword() async {
+    final emailController =
+        TextEditingController(text: _emailController.text.trim());
+
+    final email = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Recuperar contraseña'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Te enviaremos un enlace para restablecer tu contraseña.',
+              style: TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: emailController,
+              keyboardType: TextInputType.emailAddress,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'Correo electrónico',
+                prefixIcon: Icon(Icons.email_outlined),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () =>
+                Navigator.pop(ctx, emailController.text.trim()),
+            child: const Text('Enviar'),
+          ),
+        ],
+      ),
+    );
+
+    if (email == null || email.isEmpty || !email.contains('@') || !mounted) {
+      return;
+    }
+
+    try {
+      await AuthService().sendPasswordResetEmail(email);
+    } catch (_) {
+      // No revelar si el correo existe o no (evita enumeración de cuentas).
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Si el correo está registrado, recibirás un enlace de recuperación.',
+        ),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   @override
@@ -152,20 +216,11 @@ class _LoginPageState extends State<LoginPage> {
                       },
                     ),
 
-                    // Recuperar contraseña — disponible en próxima versión
+                    // Recuperar contraseña
                     Align(
                       alignment: Alignment.centerRight,
                       child: TextButton(
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Recuperación de contraseña disponible próximamente.',
-                              ),
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        },
+                        onPressed: _onForgotPassword,
                         child: const Text('¿Olvidaste tu contraseña?'),
                       ),
                     ),

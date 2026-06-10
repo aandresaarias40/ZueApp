@@ -141,15 +141,6 @@ class LocationTelemetryService {
     }
   }
 
-  /// Lee posiciones desde Redis (alias para compatibilidad).
-  Future<List<Map<String, dynamic>>> getOnlineDriverPositions() async {
-    return getDriversNearby(lat: 4.3478, lng: -74.3649, radiusKm: 10.0);
-  }
-
-  void dispose() {
-    _http.close();
-  }
-
   // ── Implementación interna ─────────────────────────────────────────────────
 
   /// Llama a una Cloud Function autenticada con el Firebase ID Token del usuario.

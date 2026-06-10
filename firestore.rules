@@ -1,108 +1,228 @@
 rules_version = '2';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Reglas de seguridad Firestore — Zue (versión endurecida)
+// ─────────────────────────────────────────────────────────────────────────────
+// Cambios clave vs versión anterior:
+//   • users:   ya no se puede cambiar el propio `role` ni `isActive`
+//              (antes un pasajero podía autoconvertirse en conductor/admin).
+//   • drivers: el conductor YA NO puede escribir subscriptionStatus /
+//              subscriptionExpiry / trialExpiresAt (antes podía activarse
+//              la suscripción gratis). Pasajeros solo pueden calificar.
+//   • trips:   transiciones de estado validadas; la tarifa tiene tope y no
+//              puede reducirse al completar; calificación 1–5 una sola vez.
+//   • payments: solo se crean en 'pending' con el monto exacto del plan.
+//   • admins:  ilegible/inmutable salvo el propio documento (get).
+//   • default: deny para cualquier colección no listada.
+//
+// El webhook de Cloud Functions usa Admin SDK y NO pasa por estas reglas.
+// Despliegue:  firebase deploy --only firestore:rules
+// ─────────────────────────────────────────────────────────────────────────────
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ── Helpers ──────────────────────────────────────────────────────────────
-    function isAuth() {
+    // ── Helpers ──────────────────────────────────────────────────────────
+    function signedIn() {
       return request.auth != null;
     }
-    function isOwner(uid) {
-      return isAuth() && request.auth.uid == uid;
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
     }
+
     function isAdmin() {
-      return isAuth() &&
+      return signedIn() &&
         exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
 
-    // ── Users ─────────────────────────────────────────────────────────────────
+    function userRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isDriver() {
+      return signedIn() && userRole() == 'driver';
+    }
+
+    function isPassenger() {
+      return signedIn() && userRole() == 'passenger';
+    }
+
+    // Campos modificados por esta escritura (update)
+    function changedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    // ── users ────────────────────────────────────────────────────────────
     match /users/{userId} {
-      allow read:  if isOwner(userId) || isAdmin();
-      allow write: if isOwner(userId) || isAdmin();
+      allow get: if isSelf(userId) || isAdmin();
+      allow list: if isAdmin();
+
+      // Crear el propio perfil al registrarse. Nunca con rol admin.
+      allow create: if isSelf(userId)
+        && request.resource.data.role in ['passenger', 'driver'];
+
+      // Editar el propio perfil sin tocar rol ni estado de cuenta.
+      allow update: if (isSelf(userId)
+          && !changedKeys().hasAny(['role', 'isActive']))
+        || isAdmin();
+
+      allow delete: if isAdmin();
     }
 
-    // ── Drivers ───────────────────────────────────────────────────────────────
-    // Lectura abierta a todos los autenticados (pasajeros ven conductores en mapa).
-    // Escritura: el conductor escribe sus propios datos (registro, online/offline,
-    //            actualizar perfil). El webhook (Admin SDK) también puede escribir.
+    // ── drivers ──────────────────────────────────────────────────────────
     match /drivers/{driverId} {
-      allow read:  if isAuth();
-      allow write: if isOwner(driverId) || isAdmin();
-    }
+      // Los pasajeros necesitan ver conductores online en el mapa.
+      allow read: if signedIn();
 
-    // ── Trips ─────────────────────────────────────────────────────────────────
-    // Lectura: solo el pasajero o conductor del viaje (o admin).
-    // Creación: el pasajero crea el viaje y debe ser el propio uid.
-    // Actualización: solo el conductor (cambia estado, posición, etc.) o admin.
-    //   El Admin SDK (webhook) bypasea estas reglas.
-    match /trips/{tripId} {
-      allow read:   if isAuth() && (
-        resource.data.passengerId == request.auth.uid ||
-        resource.data.driverId   == request.auth.uid ||
-        isAdmin()
-      );
-      allow create: if isAuth() && request.resource.data.passengerId == request.auth.uid;
-      allow update: if isAuth() && (
-        // A. El pasajero del viaje puede cancelarlo o calificarlo
-        (resource.data.passengerId == request.auth.uid) ||
-        // B. El conductor asignado puede actualizar el estado
-        (resource.data.driverId == request.auth.uid) ||
-        // C. Un conductor libre puede aceptar un viaje sin conductor asignado
-        (!('driverId' in resource.data) && request.resource.data.driverId == request.auth.uid) ||
-        isAdmin()
-      );
+      // Crear el propio documento. Estado inicial seguro: nunca nace
+      // con suscripción activa ni en estado activo.
+      allow create: if isSelf(driverId)
+        && request.resource.data.subscriptionStatus in ['trial', 'pending']
+        && request.resource.data.status == 'inactive';
+
+      allow update: if
+        // 1. El propio conductor: ubicación, online/offline, perfil del
+        //    vehículo, contadores. JAMÁS campos de suscripción, rating,
+        //    suspensión ni identidad.
+        (isSelf(driverId)
+          && !changedKeys().hasAny([
+            'subscriptionStatus', 'subscriptionExpiry', 'trialExpiresAt',
+            'subscriptionPlan', 'rating', 'ratedTrips',
+            'suspensionReason', 'userId', 'cedula'
+          ])
+          && request.resource.data.status in ['active', 'inactive', 'busy'])
+        // 2. Un pasajero calificando al conductor (rateTrip):
+        //    solo rating y ratedTrips, con límites.
+        || (isPassenger()
+          && changedKeys().hasOnly(['rating', 'ratedTrips'])
+          && request.resource.data.rating is number
+          && request.resource.data.rating >= 0
+          && request.resource.data.rating <= 5)
+        // 3. Un pasajero liberando al conductor al cancelar un viaje
+        //    aceptado (cancelTrip): solo status → active.
+        || (isPassenger()
+          && changedKeys().hasOnly(['status'])
+          && request.resource.data.status == 'active')
+        // 4. Admin: suspender, reactivar, asignar manualmente, etc.
+        || isAdmin();
+
       allow delete: if isAdmin();
     }
 
-    // ── Payments ──────────────────────────────────────────────────────────────
-    // Solo conductores registrados pueden crear su propio registro de pago.
-    // Actualización/aprobación: solo webhook via Admin SDK (bypasea reglas).
-    match /payments/{paymentId} {
-      allow read:   if isAuth() && (
-        resource.data.driverId == request.auth.uid || isAdmin()
-      );
-      allow create: if isAuth()
+    // ── driver_identities (antifraude) ───────────────────────────────────
+    // ID del documento = cédula. La unicidad la garantiza el create
+    // (falla si el documento ya existe).
+    match /driver_identities/{cedula} {
+      // get: verificación de cédula duplicada durante el registro.
+      allow get: if signedIn();
+      // list: necesario para verificar placa/celular duplicados en el
+      // registro. Si prefieres bloquear la descarga masiva de datos
+      // personales, mueve esas verificaciones a una Cloud Function y
+      // cambia esto a `if isAdmin()`.
+      allow list: if signedIn();
+
+      // Crear solo la propia identidad, con datos consistentes.
+      allow create: if signedIn()
         && request.resource.data.driverId == request.auth.uid
-        && exists(/databases/$(database)/documents/drivers/$(request.auth.uid));
-      allow update: if isAdmin();
+        && request.resource.data.cedula == cedula;
+
+      // Inmutable desde el cliente.
+      allow update, delete: if isAdmin();
+    }
+
+    // ── trips ────────────────────────────────────────────────────────────
+    match /trips/{tripId} {
+      // Pasajero y conductor ven sus viajes; cualquier conductor ve los
+      // solicitados (para aceptarlos); admin ve todo.
+      allow read: if isAdmin()
+        || (signedIn() && resource.data.passengerId == request.auth.uid)
+        || (signedIn() && resource.data.driverId == request.auth.uid)
+        || (isDriver() && resource.data.status == 'requested');
+
+      // Crear solicitud: solo el propio pasajero, estado 'requested',
+      // sin conductor y con tarifa dentro de un rango sano.
+      allow create: if isPassenger()
+        && request.resource.data.passengerId == request.auth.uid
+        && request.resource.data.status == 'requested'
+        && request.resource.data.driverId == null
+        && (request.resource.data.fare == null
+            || (request.resource.data.fare is number
+                && request.resource.data.fare >= 0
+                && request.resource.data.fare <= 500000));
+
+      allow update: if isAdmin()
+        // Conductor acepta un viaje solicitado (se asigna a sí mismo).
+        || (isDriver()
+          && resource.data.status == 'requested'
+          && request.resource.data.status == 'accepted'
+          && request.resource.data.driverId == request.auth.uid)
+        // Conductor asignado avanza/cancela el viaje. La tarifa final no
+        // puede reducirse respecto a la pactada ni superar el tope.
+        || (signedIn()
+          && resource.data.driverId == request.auth.uid
+          && request.resource.data.status in
+              ['on_route', 'in_progress', 'completed', 'cancelled']
+          && (!changedKeys().hasAny(['fare'])
+              || (request.resource.data.fare is number
+                  && request.resource.data.fare <= 500000
+                  && (resource.data.fare == null
+                      || request.resource.data.fare >= resource.data.fare))))
+        // Pasajero: cancelar su viaje pendiente/aceptado, o calificarlo
+        // (una sola vez, 1–5, solo viajes completados).
+        || (signedIn()
+          && resource.data.passengerId == request.auth.uid
+          && (
+            (request.resource.data.status == 'cancelled'
+              && resource.data.status in ['requested', 'accepted'])
+            || (changedKeys().hasOnly(['passengerRating', 'passengerComment'])
+              && resource.data.status == 'completed'
+              && resource.data.passengerRating == null
+              && request.resource.data.passengerRating is int
+              && request.resource.data.passengerRating >= 1
+              && request.resource.data.passengerRating <= 5)
+          ));
+
       allow delete: if isAdmin();
     }
 
-    // ── Subscriptions ─────────────────────────────────────────────────────────
-    // Creadas/actualizadas SOLO por el webhook (Admin SDK).
+    // ── payments ─────────────────────────────────────────────────────────
+    match /payments/{paymentId} {
+      allow read: if isAdmin()
+        || (signedIn() && resource.data.driverId == request.auth.uid);
+
+      // El conductor crea su pago SOLO en 'pending' y con el monto exacto
+      // del plan. La aprobación la hace el webhook (Admin SDK).
+      allow create: if isDriver()
+        && request.resource.data.driverId == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && ((request.resource.data.plan == 'weekly'
+              && request.resource.data.amount == 40000)
+          || (request.resource.data.plan == 'monthly'
+              && request.resource.data.amount == 140000));
+
+      // Nunca actualizable desde el cliente.
+      allow update, delete: if isAdmin();
+    }
+
+    // ── subscriptions ────────────────────────────────────────────────────
+    // Creadas exclusivamente por el webhook (Admin SDK bypassa las reglas).
     match /subscriptions/{subId} {
-      allow read:  if isAuth() && (
-        resource.data.driverId == request.auth.uid || isAdmin()
-      );
-      allow write: if isAdmin();
+      allow read: if isAdmin()
+        || (signedIn() && resource.data.driverId == request.auth.uid);
+      allow write: if false;
     }
 
-    // ── Notifications ─────────────────────────────────────────────────────────
-    match /notifications/{notifId} {
-      allow read:  if isAuth() && resource.data.userId == request.auth.uid;
-      allow write: if isAdmin();
-    }
-
-    // ── Admins ────────────────────────────────────────────────────────────────
+    // ── admins ───────────────────────────────────────────────────────────
+    // Gestionable solo desde la consola Firebase / Admin SDK.
     match /admins/{adminId} {
-      allow read, write: if isAdmin();
+      allow get: if isSelf(adminId);
+      allow list, write: if false;
     }
 
-    // ── Settings ──────────────────────────────────────────────────────────────
-    match /settings/{doc} {
-      allow read:  if isAuth();
-      allow write: if isAdmin();
-    }
-
-    // ── Driver Identities (anti-fraude) ───────────────────────────────────────
-    // Lectura: conductor autenticado la necesita para verificar duplicados al registrarse.
-    // Escritura: conductor crea su propia identidad al registrarse (create).
-    //            Solo admin puede actualizar o eliminar.
-    match /driver_identities/{identityId} {
-      allow get:    if isAuth(); // Verificar duplicado al registrarse
-      allow list:   if isAdmin(); // Bloquea descarga masiva de datos personales
-      allow create: if isAuth() && request.resource.data.driverId == request.auth.uid;
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+    // ── Denegar todo lo demás ────────────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

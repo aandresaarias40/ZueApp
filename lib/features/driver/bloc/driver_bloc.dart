@@ -2,7 +2,6 @@ import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import '../../../models/driver_model.dart';
 import '../../../services/driver_service.dart';
-import '../data/repositories/driver_repository_impl.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Events
@@ -68,10 +67,9 @@ class DriverErrorState extends DriverState {
 // BLoC
 // ─────────────────────────────────────────────────────────────────────────────
 class DriverBloc extends Bloc<DriverEvent, DriverState> {
-  final DriverRepositoryImpl driverRepository;
   final DriverService _driverService = DriverService();
 
-  DriverBloc({required this.driverRepository}) : super(DriverInitialState()) {
+  DriverBloc() : super(DriverInitialState()) {
     on<LoadDriverEvent>(_onLoadDriver);
     on<ToggleDriverOnlineEvent>(_onToggleOnline);
     on<UpdateDriverLocationEvent>(_onUpdateLocation);

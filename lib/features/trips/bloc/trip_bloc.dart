@@ -4,7 +4,6 @@ import 'package:equatable/equatable.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../models/trip_model.dart';
 import '../../../services/trip_service.dart';
-import '../data/repositories/trip_repository_impl.dart';
 
 // Events
 abstract class TripEvent extends Equatable {
@@ -165,10 +164,9 @@ class TripErrorState extends TripState {
 
 // BLoC
 class TripBloc extends Bloc<TripEvent, TripState> {
-  final TripRepositoryImpl tripRepository;
   final TripService _tripService = TripService();
 
-  TripBloc({required this.tripRepository}) : super(TripInitialState()) {
+  TripBloc() : super(TripInitialState()) {
     on<RequestTripEvent>(_onRequestTrip);
     on<AcceptTripEvent>(_onAcceptTrip);
     on<WatchTripEvent>(_onWatchTrip);

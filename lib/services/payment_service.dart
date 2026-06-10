@@ -33,8 +33,6 @@ class PaymentService {
 
   CollectionReference get _payments =>
       _firestore.collection(AppConstants.paymentsCollection);
-  CollectionReference get _subscriptions =>
-      _firestore.collection(AppConstants.subscriptionsCollection);
 
   // ── Cache de bancos PSE (evita llamadas repetidas) ─────────────────────────
   List<PseBankModel>? _pseBanksCache;
@@ -139,98 +137,10 @@ class PaymentService {
       rethrow;
     }
   }
-  /// Verificar estado del pago en Wompi
-  Future<String> checkPaymentStatus(String transactionId) async {
-    final response = await _dio.get(
-      '${AppConstants.wompiBaseUrl}/transactions/$transactionId',
-      options: Options(
-        headers: {
-          'Authorization': 'Bearer ${AppConstants.wompiPublicKey}',
-        },
-      ),
-    );
-    return response.data['data']['status']; // APPROVED, DECLINED, PENDING, ERROR
-  }
-
-  /// Procesar confirmación de pago exitoso
-  /// (llamado desde webhook de Wompi o desde la app tras redirección)
-  Future<void> confirmPayment({
-    required String paymentId,
-    required String transactionId,
-    required String status,
-  }) async {
-    final paymentDoc = await _payments.doc(paymentId).get();
-    if (!paymentDoc.exists) throw Exception('Pago no encontrado');
-
-    final data = paymentDoc.data() as Map<String, dynamic>;
-    final driverId = data['driverId'] as String;
-    final plan = data['plan'] as String;
-    final amount = (data['amount'] as num).toDouble();
-
-    // Idempotencia: si ya fue procesado, no crear duplicados
-    final currentStatus = data['status'] as String?;
-    if (currentStatus == AppConstants.paymentStatusApproved ||
-        currentStatus == AppConstants.paymentStatusDeclined) {
-      return;
-    }
-
-    if (status == 'APPROVED') {
-      // Calcular fechas de suscripción
-      final now = DateTime.now();
-      final endDate = plan == AppConstants.planWeekly
-          ? now.add(const Duration(days: 7))
-          : now.add(const Duration(days: 30));
-
-      // Crear suscripción activa
-      final subscriptionDoc = await _subscriptions.add({
-        'driverId': driverId,
-        'driverName': data['driverName'],
-        'plan': plan,
-        'status': 'active',
-        'amount': amount,
-        'startDate': Timestamp.fromDate(now),
-        'endDate': Timestamp.fromDate(endDate),
-        'paymentId': paymentId,
-        'transactionId': transactionId,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-
-      // Batch: actualizar pago + conductor
-      final batch = _firestore.batch();
-
-      // Actualizar pago
-      batch.update(_payments.doc(paymentId), {
-        'status': AppConstants.paymentStatusApproved,
-        'subscriptionId': subscriptionDoc.id,
-        'wompiTransactionId': transactionId,
-        'paidAt': FieldValue.serverTimestamp(),
-      });
-
-      // Activar suscripción del conductor
-      // ✅ También actualiza subscriptionPlan para reflejar el plan pagado
-      batch.update(
-        _firestore.collection(AppConstants.driversCollection).doc(driverId),
-        {
-          'subscriptionStatus': 'active',
-          'subscriptionPlan': plan,          // ← fix: actualizar el plan
-          'subscriptionExpiry': Timestamp.fromDate(endDate),
-          'status': AppConstants.driverStatusInactive,
-          'updatedAt': FieldValue.serverTimestamp(),
-        },
-      );
-
-      await batch.commit();
-    } else {
-      // Pago rechazado o fallido
-      await _payments.doc(paymentId).update({
-        'status': status == 'DECLINED'
-            ? AppConstants.paymentStatusDeclined
-            : AppConstants.paymentStatusFailed,
-        'wompiTransactionId': transactionId,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-    }
-  }
+  // NOTA DE SEGURIDAD: la confirmación de pagos y la activación de
+  // suscripciones la realiza EXCLUSIVAMENTE el webhook de Cloud Functions
+  // (Admin SDK). El cliente nunca debe escribir en payments/subscriptions
+  // más allá de crear el documento de pago en estado 'pending'.
 
   /// Escuchar cambios en tiempo real de un pago específico.
   /// Úsalo para saber cuando el webhook actualiza el estado (approved/declined).
@@ -241,16 +151,6 @@ class PaymentService {
     });
   }
 
-  /// Obtener historial de pagos del conductor
-  Stream<List<PaymentModel>> watchDriverPayments(String driverId) {
-    return _payments
-        .where('driverId', isEqualTo: driverId)
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((s) =>
-            s.docs.map((doc) => PaymentModel.fromFirestore(doc)).toList());
-  }
-
   /// Obtener todos los pagos (para admin)
   Stream<List<PaymentModel>> watchAllPayments({String? status}) {
     Query query = _payments.orderBy('createdAt', descending: true);
@@ -258,27 +158,5 @@ class PaymentService {
     return query.snapshots().map(
           (s) => s.docs.map((doc) => PaymentModel.fromFirestore(doc)).toList(),
         );
-  }
-
-  /// Obtener resumen de ingresos para el admin
-  Future<Map<String, dynamic>> getRevenueSummary() async {
-    final now = DateTime.now();
-    final startOfMonth = DateTime(now.year, now.month, 1);
-
-    final monthlyPayments = await _payments
-        .where('status', isEqualTo: AppConstants.paymentStatusApproved)
-        .where('paidAt', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfMonth))
-        .get();
-
-    double totalRevenue = 0;
-    for (final doc in monthlyPayments.docs) {
-      final data = doc.data() as Map<String, dynamic>;
-      totalRevenue += (data['amount'] as num).toDouble();
-    }
-
-    return {
-      'monthlyRevenue': totalRevenue,
-      'monthlyPaymentsCount': monthlyPayments.docs.length,
-    };
   }
 }

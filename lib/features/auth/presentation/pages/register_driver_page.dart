@@ -122,7 +122,7 @@ class _RegisterDriverPageState extends State<RegisterDriverPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(e.toString()),
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
             backgroundColor: AppTheme.errorColor,
           ),
         );

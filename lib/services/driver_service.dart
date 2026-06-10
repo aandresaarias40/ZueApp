@@ -120,31 +120,6 @@ class DriverService {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Actualizar datos del perfil del conductor (vehículo, etc.)
-  // ─────────────────────────────────────────────────────────────────────────
-  Future<void> updateDriverProfile({
-    required String driverId,
-    String? vehicleType,
-    String? vehiclePlate,
-    String? vehicleModel,
-    String? vehicleColor,
-    String? licenseNumber,
-    String? subscriptionPlan,
-  }) async {
-    final data = <String, dynamic>{
-      'updatedAt': FieldValue.serverTimestamp(),
-    };
-    if (vehicleType != null) data['vehicleType'] = vehicleType;
-    if (vehiclePlate != null) data['vehiclePlate'] = vehiclePlate;
-    if (vehicleModel != null) data['vehicleModel'] = vehicleModel;
-    if (vehicleColor != null) data['vehicleColor'] = vehicleColor;
-    if (licenseNumber != null) data['licenseNumber'] = licenseNumber;
-    if (subscriptionPlan != null) data['subscriptionPlan'] = subscriptionPlan;
-
-    await _drivers.doc(driverId).set(data, SetOptions(merge: true));
-  }
-
-  // ─────────────────────────────────────────────────────────────────────────
   // Conductores cercanos disponibles
   //
   // Estrategia dual:

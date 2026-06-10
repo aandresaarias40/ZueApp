@@ -45,7 +45,10 @@ class TripService {
     return trip;
   }
 
-  // Conductor acepta viaje
+  // Conductor acepta viaje.
+  // TRANSACCIÓN atómica: las lecturas (viaje disponible, conductor libre) y
+  // las escrituras ocurren como una unidad. Evita la carrera en la que dos
+  // conductores aceptan el mismo viaje simultáneamente (check-then-write).
   Future<void> acceptTrip({
     required String tripId,
     required String driverId,
@@ -54,46 +57,43 @@ class TripService {
     required String vehiclePlate,
     required String vehicleType,
   }) async {
-    // Verificar que el conductor no tenga ya un viaje activo
-    final driverDoc = await _firestore
-        .collection(AppConstants.driversCollection)
-        .doc(driverId)
-        .get();
+    final tripRef = _trips.doc(tripId);
+    final driverRef =
+        _firestore.collection(AppConstants.driversCollection).doc(driverId);
 
-    if (driverDoc.exists) {
-      final currentStatus = driverDoc.data()?['status'] as String? ?? '';
-      if (currentStatus == AppConstants.driverStatusBusy) {
-        throw Exception(
-            'Ya tienes un viaje activo. Complétalo antes de aceptar otro.');
+    await _firestore.runTransaction((tx) async {
+      final driverDoc = await tx.get(driverRef);
+      if (driverDoc.exists) {
+        final currentStatus = driverDoc.data()?['status'] as String? ?? '';
+        if (currentStatus == AppConstants.driverStatusBusy) {
+          throw Exception(
+              'Ya tienes un viaje activo. Complétalo antes de aceptar otro.');
+        }
       }
-    }
 
-    // Verificar que el viaje aún esté disponible (no lo tomó otro conductor)
-    final tripDoc = await _trips.doc(tripId).get();
-    if (!tripDoc.exists) {
-      throw Exception('El viaje ya no está disponible.');
-    }
-    final tripStatus = (tripDoc.data() as Map<String, dynamic>?)?['status'] as String? ?? '';
-    if (tripStatus != AppConstants.tripStatusRequested) {
-      throw Exception('Este viaje ya fue tomado por otro conductor.');
-    }
+      final tripDoc = await tx.get(tripRef);
+      if (!tripDoc.exists) {
+        throw Exception('El viaje ya no está disponible.');
+      }
+      final tripStatus =
+          (tripDoc.data() as Map<String, dynamic>?)?['status'] as String? ?? '';
+      if (tripStatus != AppConstants.tripStatusRequested) {
+        throw Exception('Este viaje ya fue tomado por otro conductor.');
+      }
 
-    // Aceptar viaje
-    await _trips.doc(tripId).set({
-      'driverId': driverId,
-      'driverName': driverName,
-      'driverPhone': driverPhone,
-      'vehiclePlate': vehiclePlate,
-      'vehicleType': vehicleType,
-      'status': AppConstants.tripStatusAccepted,
-      'acceptedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+      tx.set(tripRef, {
+        'driverId': driverId,
+        'driverName': driverName,
+        'driverPhone': driverPhone,
+        'vehiclePlate': vehiclePlate,
+        'vehicleType': vehicleType,
+        'status': AppConstants.tripStatusAccepted,
+        'acceptedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
 
-    // Marcar conductor como ocupado
-    await _firestore
-        .collection(AppConstants.driversCollection)
-        .doc(driverId)
-        .set({'status': AppConstants.driverStatusBusy}, SetOptions(merge: true));
+      tx.set(driverRef, {'status': AppConstants.driverStatusBusy},
+          SetOptions(merge: true));
+    });
   }
 
   // Conductor inicia el viaje (recogió al pasajero)
@@ -206,41 +206,54 @@ class TripService {
         .update({'status': AppConstants.driverStatusBusy});
   }
 
-  // Calificar viaje (pasajero califica al conductor)
+  // Calificar viaje (pasajero califica al conductor).
+  // TRANSACCIÓN atómica: evita corromper el promedio si dos calificaciones
+  // llegan a la vez, impide calificar dos veces el mismo viaje y valida
+  // el rango de la calificación.
   Future<void> rateTrip({
     required String tripId,
     required String driverId,
     required int rating,
     String? comment,
   }) async {
-    await _trips.doc(tripId).update({
-      'passengerRating': rating,
-      'passengerComment': comment,
-    });
-
-    // Actualizar promedio de calificación del conductor.
-    // Solo se calcula promedio real; el valor 5.0 inicial no se usa como base.
-    final driverDoc = await _firestore
-        .collection(AppConstants.driversCollection)
-        .doc(driverId)
-        .get();
-    if (driverDoc.exists) {
-      final data = driverDoc.data() as Map<String, dynamic>;
-      // ratedTrips: cuántos viajes ya tienen calificación acumulada en rating
-      final ratedTrips = (data['ratedTrips'] ?? 0) as int;
-      final currentRating = ratedTrips > 0
-          ? (data['rating'] ?? 0.0).toDouble()
-          : 0.0; // ignorar el 5.0 por defecto si aún no hay calificaciones
-      final newRating =
-          ((currentRating * ratedTrips) + rating) / (ratedTrips + 1);
-      await _firestore
-          .collection(AppConstants.driversCollection)
-          .doc(driverId)
-          .update({
-        'rating': newRating,
-        'ratedTrips': ratedTrips + 1,
-      });
+    if (rating < 1 || rating > 5) {
+      throw Exception('La calificación debe estar entre 1 y 5.');
     }
+
+    final tripRef = _trips.doc(tripId);
+    final driverRef =
+        _firestore.collection(AppConstants.driversCollection).doc(driverId);
+
+    await _firestore.runTransaction((tx) async {
+      final tripDoc = await tx.get(tripRef);
+      if (!tripDoc.exists) throw Exception('El viaje no existe.');
+      final tripData = tripDoc.data() as Map<String, dynamic>;
+      if (tripData['passengerRating'] != null) {
+        throw Exception('Este viaje ya fue calificado.');
+      }
+
+      final driverDoc = await tx.get(driverRef);
+
+      tx.update(tripRef, {
+        'passengerRating': rating,
+        'passengerComment': comment,
+      });
+
+      if (driverDoc.exists) {
+        final data = driverDoc.data() as Map<String, dynamic>;
+        // ratedTrips: cuántos viajes ya tienen calificación acumulada en rating
+        final ratedTrips = (data['ratedTrips'] ?? 0) as int;
+        final currentRating = ratedTrips > 0
+            ? (data['rating'] ?? 0.0).toDouble()
+            : 0.0; // ignorar el 5.0 por defecto si aún no hay calificaciones
+        final newRating =
+            ((currentRating * ratedTrips) + rating) / (ratedTrips + 1);
+        tx.update(driverRef, {
+          'rating': newRating,
+          'ratedTrips': ratedTrips + 1,
+        });
+      }
+    });
   }
 
   // Stream del viaje activo del pasajero
@@ -282,22 +295,6 @@ class TripService {
         .doc(tripId)
         .snapshots()
         .map((doc) => doc.exists ? TripModel.fromFirestore(doc) : null);
-  }
-
-  // Stream del viaje activo del conductor
-  Stream<TripModel?> watchDriverActiveTrip(String driverId) {
-    return _trips
-        .where('driverId', isEqualTo: driverId)
-        .where('status', whereIn: [
-          AppConstants.tripStatusAccepted,
-          AppConstants.tripStatusOnRoute,
-          AppConstants.tripStatusInProgress,
-        ])
-        .limit(1)
-        .snapshots()
-        .map((snapshot) => snapshot.docs.isEmpty
-            ? null
-            : TripModel.fromFirestore(snapshot.docs.first));
   }
 
   // Historial de viajes del pasajero
