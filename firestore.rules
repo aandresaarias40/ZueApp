@@ -48,6 +48,12 @@ service cloud.firestore {
       return signedIn() && userRole() == 'passenger';
     }
 
+    // Cuenta no bloqueada por un administrador (isActive == true).
+    function isActiveUser() {
+      return signedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isActive == true;
+    }
+
     // Campos modificados por esta escritura (update)
     function changedKeys() {
       return request.resource.data.diff(resource.data).affectedKeys();
@@ -84,8 +90,11 @@ service cloud.firestore {
       allow update: if
         // 1. El propio conductor: ubicación, online/offline, perfil del
         //    vehículo, contadores. JAMÁS campos de suscripción, rating,
-        //    suspensión ni identidad.
+        //    suspensión ni identidad. Cuentas bloqueadas o suspendidas
+        //    no pueden auto-modificarse (solo un admin las reactiva).
         (isSelf(driverId)
+          && isActiveUser()
+          && resource.data.status != 'suspended'
           && !changedKeys().hasAny([
             'subscriptionStatus', 'subscriptionExpiry', 'trialExpiresAt',
             'subscriptionPlan', 'rating', 'ratedTrips',
@@ -140,9 +149,10 @@ service cloud.firestore {
         || (signedIn() && resource.data.driverId == request.auth.uid)
         || (isDriver() && resource.data.status == 'requested');
 
-      // Crear solicitud: solo el propio pasajero, estado 'requested',
-      // sin conductor y con tarifa dentro de un rango sano.
+      // Crear solicitud: solo el propio pasajero (no bloqueado), estado
+      // 'requested', sin conductor y con tarifa dentro de un rango sano.
       allow create: if isPassenger()
+        && isActiveUser()
         && request.resource.data.passengerId == request.auth.uid
         && request.resource.data.status == 'requested'
         && request.resource.data.driverId == null
@@ -214,10 +224,20 @@ service cloud.firestore {
     }
 
     // ── admins ───────────────────────────────────────────────────────────
-    // Gestionable solo desde la consola Firebase / Admin SDK.
+    // La escritura SOLO ocurre vía Cloud Function setAdminRole (Admin SDK,
+    // bypassa estas reglas) o desde la consola Firebase. Los admins pueden
+    // listar para la pantalla de gestión de administradores.
     match /admins/{adminId} {
-      allow get: if isSelf(adminId);
-      allow list, write: if false;
+      allow get: if isSelf(adminId) || isAdmin();
+      allow list: if isAdmin();
+      allow write: if false;
+    }
+
+    // ── moderation_log (historial de bloqueos / sanciones) ───────────────
+    // Escrito exclusivamente por Cloud Functions (Admin SDK).
+    match /moderation_log/{entryId} {
+      allow read: if isAdmin();
+      allow write: if false;
     }
 
     // ── Denegar todo lo demás ────────────────────────────────────────────

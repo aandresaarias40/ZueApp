@@ -3,6 +3,7 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../models/driver_model.dart';
 import '../../../../services/driver_service.dart';
+import '../widgets/block_reason_dialog.dart';
 
 class AdminDriversPage extends StatefulWidget {
   const AdminDriversPage({super.key});
@@ -104,31 +105,32 @@ class _AdminDriversPageState extends State<AdminDriversPage>
     );
   }
 
-  void _suspendDriver(DriverModel driver) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Suspender conductor'),
-        content: Text(
-            '¿Suspender a ${driver.name}? No podrá recibir viajes hasta renovar su suscripción.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              await _driverService.suspendDriver(
-                  driver.id, 'Suspendido por administrador');
-              if (mounted) Navigator.pop(context);
-            },
-            style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.errorColor),
-            child: const Text('Suspender'),
-          ),
-        ],
-      ),
+  /// Suspensión operativa con motivo (medida disciplinaria o incidente).
+  /// El conductor conserva acceso a la app pero no puede recibir viajes.
+  /// Para bloquear la cuenta por completo, usar la pantalla de Usuarios.
+  Future<void> _suspendDriver(DriverModel driver) async {
+    final result = await showBlockReasonDialog(
+      context,
+      title: 'Suspender conductor',
+      subtitle:
+          '${driver.name} no podrá ponerse en línea ni recibir viajes hasta '
+          'que un administrador lo reactive. El motivo quedará registrado.',
+      confirmLabel: 'Suspender',
     );
+    if (result == null) return;
+
+    final label =
+        AppConstants.blockCategoryLabels[result.category] ?? result.category;
+    await _driverService.suspendDriver(
+        driver.id, '[$label] ${result.reason}');
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${driver.name} fue suspendido'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   void _reactivateDriver(DriverModel driver) async {

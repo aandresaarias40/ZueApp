@@ -25,10 +25,38 @@ class AuthService {
         password: password,
       );
       final uid = credential.user!.uid;
-      return await getUserById(uid);
+      final user = await getUserById(uid);
+
+      // Cuenta bloqueada por un administrador → rechazar el acceso.
+      if (!user.isActive) {
+        await _auth.signOut();
+        throw Exception(blockedAccountMessage(user));
+      }
+      return user;
     } on FirebaseAuthException catch (e) {
       throw Exception(_mapFirebaseAuthException(e));
     }
+  }
+
+  /// Mensaje mostrado a un usuario bloqueado (incluye categoría y motivo).
+  static String blockedAccountMessage(UserModel user) {
+    final buffer = StringBuffer('Tu cuenta ha sido bloqueada por el equipo de Zue.');
+    buffer.write('\nCategoría: ${user.blockCategoryLabel}.');
+    if (user.blockReason != null && user.blockReason!.trim().isNotEmpty) {
+      buffer.write('\nMotivo: ${user.blockReason}.');
+    }
+    buffer.write('\nSi crees que es un error, contacta a soporte.');
+    return buffer.toString();
+  }
+
+  /// Stream del documento del usuario autenticado.
+  /// Usado por AuthBloc para expulsar en tiempo real a cuentas bloqueadas.
+  Stream<UserModel?> watchUser(String uid) {
+    return _firestore
+        .collection(AppConstants.usersCollection)
+        .doc(uid)
+        .snapshots()
+        .map((doc) => doc.exists ? UserModel.fromFirestore(doc) : null);
   }
 
   // Registro de pasajero

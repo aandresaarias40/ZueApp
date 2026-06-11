@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -35,6 +37,15 @@ class AuthRegisterPassengerEvent extends AuthEvent {
 
 class AuthLogoutEvent extends AuthEvent {}
 
+/// Disparado internamente cuando el documento del usuario cambia en
+/// Firestore (p. ej. un admin lo bloquea mientras tiene sesión abierta).
+class AuthUserDocChangedEvent extends AuthEvent {
+  final UserModel? user;
+  AuthUserDocChangedEvent(this.user);
+  @override
+  List<Object?> get props => [user];
+}
+
 // States
 abstract class AuthState extends Equatable {
   @override
@@ -54,6 +65,15 @@ class AuthAuthenticatedState extends AuthState {
 
 class AuthUnauthenticatedState extends AuthState {}
 
+/// La cuenta fue bloqueada por un administrador. Se cierra la sesión y
+/// el login muestra el motivo. El router lo trata como "no autenticado".
+class AuthBlockedState extends AuthState {
+  final String message;
+  AuthBlockedState({required this.message});
+  @override
+  List<Object?> get props => [message];
+}
+
 class AuthErrorState extends AuthState {
   final String message;
   AuthErrorState({required this.message});
@@ -65,11 +85,28 @@ class AuthErrorState extends AuthState {
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final AuthRepositoryImpl authRepository;
 
+  /// Suscripción en vivo al documento users/{uid} del usuario autenticado.
+  /// Permite expulsar de inmediato a una cuenta bloqueada por un admin.
+  StreamSubscription<UserModel?>? _userDocSub;
+
   AuthBloc({required this.authRepository}) : super(AuthInitialState()) {
     on<AuthCheckStatusEvent>(_onCheckStatus);
     on<AuthLoginEvent>(_onLogin);
     on<AuthRegisterPassengerEvent>(_onRegisterPassenger);
     on<AuthLogoutEvent>(_onLogout);
+    on<AuthUserDocChangedEvent>(_onUserDocChanged);
+  }
+
+  void _watchUserDoc(String uid) {
+    _userDocSub?.cancel();
+    _userDocSub = authRepository
+        .watchUser(uid)
+        .listen((user) => add(AuthUserDocChangedEvent(user)));
+  }
+
+  Future<void> _stopWatchingUserDoc() async {
+    await _userDocSub?.cancel();
+    _userDocSub = null;
   }
 
   Future<void> _onCheckStatus(
@@ -78,6 +115,13 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     try {
       final user = await authRepository.getCurrentUser();
       if (user != null) {
+        // Cuenta bloqueada → cerrar sesión y mostrar el motivo.
+        if (!user.isActive) {
+          await authRepository.signOut();
+          emit(AuthBlockedState(message: authRepository.blockedMessage(user)));
+          return;
+        }
+        _watchUserDoc(user.id);
         emit(AuthAuthenticatedState(user: user));
       } else {
         emit(AuthUnauthenticatedState());
@@ -95,6 +139,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         email: event.email,
         password: event.password,
       );
+      _watchUserDoc(user.id);
       emit(AuthAuthenticatedState(user: user));
     } catch (e) {
       emit(AuthErrorState(message: _authErrorMessage(e)));
@@ -112,11 +157,38 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         phone: event.phone,
         password: event.password,
       );
+      _watchUserDoc(user.id);
       emit(AuthAuthenticatedState(user: user));
     } catch (e) {
       emit(AuthErrorState(message: _authErrorMessage(e)));
       emit(AuthUnauthenticatedState());
     }
+  }
+
+  /// El documento del usuario cambió en Firestore.
+  /// Si fue bloqueado (isActive=false) → cerrar sesión inmediatamente.
+  Future<void> _onUserDocChanged(
+      AuthUserDocChangedEvent event, Emitter<AuthState> emit) async {
+    if (state is! AuthAuthenticatedState) return;
+
+    final user = event.user;
+    if (user == null) {
+      // El documento fue eliminado por un admin → sesión inválida.
+      await _stopWatchingUserDoc();
+      await authRepository.signOut();
+      emit(AuthUnauthenticatedState());
+      return;
+    }
+
+    if (!user.isActive) {
+      await _stopWatchingUserDoc();
+      await authRepository.signOut();
+      emit(AuthBlockedState(message: authRepository.blockedMessage(user)));
+      return;
+    }
+
+    // Mantener el estado sincronizado (cambios de nombre, rol, etc.).
+    emit(AuthAuthenticatedState(user: user));
   }
 
   /// Traduce errores de FirebaseAuth a mensajes legibles en español.
@@ -131,7 +203,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         case 'invalid-email':
           return 'El correo electrónico no es válido.';
         case 'user-disabled':
-          return 'Esta cuenta está desactivada. Contacta soporte.';
+          return 'Tu cuenta ha sido bloqueada. Contacta a soporte de Zue.';
         case 'too-many-requests':
           return 'Demasiados intentos fallidos. Intenta más tarde.';
         case 'network-request-failed':
@@ -153,7 +225,14 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
   Future<void> _onLogout(
       AuthLogoutEvent event, Emitter<AuthState> emit) async {
+    await _stopWatchingUserDoc();
     await authRepository.signOut();
     emit(AuthUnauthenticatedState());
+  }
+
+  @override
+  Future<void> close() async {
+    await _stopWatchingUserDoc();
+    return super.close();
   }
 }

@@ -213,6 +213,210 @@ exports.setDriverOffline = onRequest(OPTS, async (req, res) => {
 });
 
 // =============================================================================
+// MODERACIÓN — bloqueo de usuarios/conductores y gestión de administradores
+// =============================================================================
+const COL_USERS      = "users";
+const COL_ADMINS     = "admins";
+const COL_MODERATION = "moderation_log";
+
+const BLOCK_CATEGORIES = ["incident", "disciplinary", "fraud", "other"];
+
+// Verifica el ID Token Y que el llamador sea administrador (doc en admins/).
+async function verifyAdminCaller(req) {
+  const user = await verifyToken(req);
+  if (!user) return null;
+  const adminDoc = await admin.firestore()
+    .collection(COL_ADMINS).doc(user.uid).get();
+  return adminDoc.exists ? user : null;
+}
+
+// Limpia los índices Redis de un conductor (mejor esfuerzo).
+async function removeDriverFromRedis(driverId) {
+  try {
+    const redis = getRedis();
+    const pipe  = redis.pipeline();
+    pipe.srem(ONLINE_DRIVERS_KEY, driverId);
+    pipe.del(`${DRIVER_POS_PREFIX}${driverId}`);
+    pipe.zrem(GEO_KEY, driverId);
+    await pipe.exec();
+  } catch (e) {
+    log.warn("removeDriverFromRedis falló:", e.message);
+  }
+}
+
+// =============================================================================
+// setUserBlocked — bloquear/desbloquear usuario o conductor (SOLO admins)
+// Body: { userId, blocked: bool, category?, reason? }
+//
+// Efectos al bloquear:
+//   • users/{id}:   isActive=false + categoría/motivo/fecha/admin
+//   • drivers/{id}: status='suspended', isOnline=false (si es conductor)
+//   • Firebase Auth: cuenta deshabilitada + refresh tokens revocados
+//   • Redis: conductor removido de los índices de mapa
+//   • moderation_log: registro de auditoría
+// El cliente además escucha users/{id} y cierra la sesión en tiempo real.
+// =============================================================================
+exports.setUserBlocked = onRequest(OPTS, async (req, res) => {
+  setCors(req, res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  if (req.method !== "POST")    return res.status(405).json({ error: "Metodo no permitido" });
+
+  const caller = await verifyAdminCaller(req);
+  if (!caller) return res.status(403).json({ error: "Solo administradores" });
+
+  const { userId, blocked, category = "other", reason = "" } = req.body || {};
+  if (!userId || typeof blocked !== "boolean")
+    return res.status(400).json({ error: "Faltan campos: userId, blocked" });
+  if (userId === caller.uid)
+    return res.status(400).json({ error: "No puedes bloquear tu propia cuenta" });
+  if (blocked && !BLOCK_CATEGORIES.includes(category))
+    return res.status(400).json({ error: "Categoria invalida" });
+
+  const db      = admin.firestore();
+  const userRef = db.collection(COL_USERS).doc(userId);
+  const snap    = await userRef.get();
+  if (!snap.exists) return res.status(404).json({ error: "Usuario no encontrado" });
+
+  const target = snap.data();
+  if (target.role === "admin")
+    return res.status(403).json({ error: "No se puede bloquear a un administrador. Revoca su rol primero." });
+
+  const now   = admin.firestore.FieldValue.serverTimestamp();
+  const batch = db.batch();
+
+  batch.update(userRef, {
+    isActive:      !blocked,
+    blockCategory: blocked ? category : null,
+    blockReason:   blocked ? String(reason).slice(0, 500) : null,
+    blockedAt:     blocked ? now : null,
+    blockedBy:     blocked ? caller.uid : null,
+    updatedAt:     now,
+  });
+
+  // Si es conductor: suspender operación y sacarlo del mapa.
+  if (target.role === "driver") {
+    const driverRef = db.collection(COL_DRIVERS).doc(userId);
+    const driverSnap = await driverRef.get();
+    if (driverSnap.exists) {
+      batch.update(driverRef, blocked
+        ? {
+            status: "suspended",
+            isOnline: false,
+            suspensionReason: `[${category}] ${reason}`.slice(0, 500),
+            updatedAt: now,
+          }
+        : {
+            status: "inactive",
+            suspensionReason: null,
+            updatedAt: now,
+          });
+    }
+  }
+
+  // Auditoría.
+  batch.set(db.collection(COL_MODERATION).doc(), {
+    action:     blocked ? "block" : "unblock",
+    targetId:   userId,
+    targetRole: target.role,
+    targetName: target.name || "",
+    category:   blocked ? category : null,
+    reason:     blocked ? String(reason).slice(0, 500) : null,
+    adminId:    caller.uid,
+    createdAt:  now,
+  });
+
+  await batch.commit();
+
+  // Deshabilitar la cuenta en Firebase Auth: impide iniciar sesión.
+  // Revocar refresh tokens: la sesión activa muere al expirar el ID token
+  // (≤1 h); la expulsión inmediata la hace el listener del cliente.
+  try {
+    await admin.auth().updateUser(userId, { disabled: blocked });
+    if (blocked) await admin.auth().revokeRefreshTokens(userId);
+  } catch (e) {
+    log.warn("setUserBlocked: no se pudo actualizar Auth:", e.message);
+  }
+
+  if (blocked && target.role === "driver") await removeDriverFromRedis(userId);
+
+  return res.json({ ok: true, blocked });
+});
+
+// =============================================================================
+// setAdminRole — promover/revocar administradores (SOLO admins)
+// Body: { userId, makeAdmin: bool }
+//
+// Al promover: crea admins/{userId} y cambia users.role → 'admin'
+//              (guarda previousRole para poder revertir).
+// Al revocar:  borra admins/{userId} y restaura el rol anterior.
+// =============================================================================
+exports.setAdminRole = onRequest(OPTS, async (req, res) => {
+  setCors(req, res);
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  if (req.method !== "POST")    return res.status(405).json({ error: "Metodo no permitido" });
+
+  const caller = await verifyAdminCaller(req);
+  if (!caller) return res.status(403).json({ error: "Solo administradores" });
+
+  const { userId, makeAdmin } = req.body || {};
+  if (!userId || typeof makeAdmin !== "boolean")
+    return res.status(400).json({ error: "Faltan campos: userId, makeAdmin" });
+  if (userId === caller.uid && !makeAdmin)
+    return res.status(400).json({ error: "No puedes revocar tu propio rol de administrador" });
+
+  const db      = admin.firestore();
+  const userRef = db.collection(COL_USERS).doc(userId);
+  const snap    = await userRef.get();
+  if (!snap.exists) return res.status(404).json({ error: "Usuario no encontrado" });
+
+  const target = snap.data();
+  const now    = admin.firestore.FieldValue.serverTimestamp();
+  const batch  = db.batch();
+  const adminRef = db.collection(COL_ADMINS).doc(userId);
+
+  if (makeAdmin) {
+    if (target.isActive === false)
+      return res.status(400).json({ error: "No se puede promover a un usuario bloqueado" });
+    if (target.role === "admin")
+      return res.status(400).json({ error: "El usuario ya es administrador" });
+
+    batch.set(adminRef, {
+      email:      target.email || "",
+      name:       target.name || "",
+      promotedBy: caller.uid,
+      createdAt:  now,
+    });
+    batch.update(userRef, {
+      previousRole: target.role,
+      role:         "admin",
+      updatedAt:    now,
+    });
+  } else {
+    if (target.role !== "admin")
+      return res.status(400).json({ error: "El usuario no es administrador" });
+
+    batch.delete(adminRef);
+    batch.update(userRef, {
+      role:         target.previousRole || "passenger",
+      previousRole: admin.firestore.FieldValue.delete(),
+      updatedAt:    now,
+    });
+  }
+
+  batch.set(db.collection(COL_MODERATION).doc(), {
+    action:     makeAdmin ? "promote_admin" : "demote_admin",
+    targetId:   userId,
+    targetRole: target.role,
+    targetName: target.name || "",
+    adminId:    caller.uid,
+    createdAt:  now,
+  });
+
+  await batch.commit();
+  return res.json({ ok: true, role: makeAdmin ? "admin" : (target.previousRole || "passenger") });
+});
+
+// =============================================================================
 // wompiWebhook — recibe eventos de Wompi y confirma pagos de forma segura.
 //
 // SETUP en el dashboard de Wompi:

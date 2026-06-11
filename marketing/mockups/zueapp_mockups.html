@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zue — Mockups promocionales</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --primary:#1A73E8; --primary-dark:#0D47A1; --accent:#FFC107;
+    --success:#4CAF50; --error:#F44336; --bg:#F5F7FA; --surface:#fff;
+    --text:#1A1A2E; --text2:#6B7280; --divider:#E5E7EB; --field:#F0F4FF;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;font-family:'Poppins',sans-serif}
+  body{background:linear-gradient(160deg,#0D47A1 0%,#1A73E8 55%,#0a3d8f 100%);min-height:100vh;padding:40px 20px;color:#fff}
+  .header{text-align:center;margin-bottom:28px}
+  .header .logo{display:inline-flex;width:64px;height:64px;border-radius:18px;background:linear-gradient(135deg,#1A73E8,#0D47A1);box-shadow:0 8px 24px rgba(0,0,0,.3);align-items:center;justify-content:center;font-size:40px;font-weight:800;border:2px solid rgba(255,255,255,.25)}
+  .header h1{font-size:30px;font-weight:800;margin-top:12px}
+  .header h1 span{color:var(--accent)}
+  .header p{color:rgba(255,255,255,.85);font-weight:300;margin-top:4px}
+  .tabs{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:32px}
+  .tab{padding:9px 18px;border-radius:999px;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.08);color:#fff;cursor:pointer;font-size:13px;font-weight:500;transition:.2s}
+  .tab:hover{background:rgba(255,255,255,.18)}
+  .tab.active{background:var(--accent);color:#1A1A2E;border-color:var(--accent);font-weight:600}
+  .stage{display:flex;justify-content:center;align-items:flex-start;gap:48px;flex-wrap:wrap}
+  .caption{max-width:280px;padding-top:60px}
+  .caption h2{font-size:24px;font-weight:700;line-height:1.25}
+  .caption p{margin-top:10px;color:rgba(255,255,255,.85);font-size:14px;font-weight:300;line-height:1.6}
+  .caption .chips{margin-top:16px;display:flex;flex-wrap:wrap;gap:8px}
+  .chip{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);padding:5px 12px;border-radius:999px;font-size:12px}
+  /* ---------- PHONE ---------- */
+  .phone{width:340px;height:716px;background:#111;border-radius:48px;padding:10px;box-shadow:0 30px 60px rgba(0,0,0,.45),0 0 0 2px #2a2a2a;position:relative;flex-shrink:0}
+  .phone .screen{width:100%;height:100%;border-radius:40px;overflow:hidden;background:var(--bg);position:relative;color:var(--text)}
+  .island{position:absolute;top:18px;left:50%;transform:translateX(-50%);width:100px;height:26px;background:#111;border-radius:999px;z-index:50}
+  .status{height:44px;display:flex;justify-content:space-between;align-items:flex-end;padding:0 24px 4px;font-size:12px;font-weight:600;color:var(--text)}
+  .status .r{display:flex;gap:5px;align-items:center}
+  .view{display:none;height:100%}
+  .view.on{display:block}
+  /* ---------- LOGIN ---------- */
+  .login{padding:54px 24px 0;background:#fff;height:100%}
+  .zlogo{width:76px;height:76px;border-radius:20px;background:linear-gradient(135deg,#1A73E8,#0D47A1);display:flex;align-items:center;justify-content:center;color:#fff;font-size:46px;font-weight:700;margin:18px auto 0;box-shadow:0 10px 24px rgba(26,115,232,.35)}
+  .login h3{text-align:center;font-size:22px;font-weight:700;margin-top:14px}
+  .login .sub{text-align:center;color:var(--text2);font-size:13px;margin-top:2px;margin-bottom:24px}
+  .fld{background:var(--field);border:1px solid var(--divider);border-radius:14px;padding:13px 14px;display:flex;align-items:center;gap:10px;color:var(--text2);font-size:13.5px;margin-bottom:14px}
+  .fld svg{flex-shrink:0}
+  .forgot{text-align:right;font-size:12.5px;color:var(--primary);font-weight:500;margin:-4px 2px 18px}
+  .btn{background:var(--primary);color:#fff;border:none;border-radius:14px;width:100%;padding:15px;font-size:15px;font-weight:600;font-family:'Poppins';box-shadow:0 8px 18px rgba(26,115,232,.35)}
+  .login .alt{text-align:center;font-size:12.5px;color:var(--text2);margin-top:20px}
+  .login .alt b{color:var(--primary);font-weight:600}
+  .roles{display:flex;gap:10px;margin-top:22px}
+  .role{flex:1;border:1.5px solid var(--divider);border-radius:16px;padding:14px 10px;text-align:center;font-size:12px;font-weight:500;color:var(--text2)}
+  .role.sel{border-color:var(--primary);background:var(--field);color:var(--primary);font-weight:600}
+  .role .ic{font-size:22px;display:block;margin-bottom:4px}
+  /* ---------- MAP ---------- */
+  .map{position:absolute;inset:0;background:#E8EDF2}
+  .map svg{width:100%;height:100%}
+  .topbar{position:absolute;top:54px;left:16px;right:16px;display:flex;justify-content:space-between;z-index:5}
+  .roundbtn{width:42px;height:42px;border-radius:999px;background:#fff;box-shadow:0 4px 14px rgba(0,0,0,.12);display:flex;align-items:center;justify-content:center}
+  .greet{position:absolute;top:108px;left:16px;background:#fff;border-radius:999px;padding:8px 16px;font-size:13px;font-weight:600;box-shadow:0 4px 14px rgba(0,0,0,.12);z-index:5}
+  .sheet{position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:28px 28px 40px 40px;padding:10px 20px 26px;box-shadow:0 -10px 30px rgba(0,0,0,.12);z-index:10}
+  .grab{width:44px;height:5px;border-radius:99px;background:var(--divider);margin:4px auto 14px}
+  .sheet h4{font-size:16px;font-weight:700;margin-bottom:12px}
+  .search{background:var(--field);border:1px solid var(--divider);border-radius:14px;padding:13px 14px;display:flex;align-items:center;gap:10px;color:var(--text2);font-size:13.5px;margin-bottom:14px}
+  .btn.yellow{background:var(--accent);color:#1A1A2E;box-shadow:0 8px 18px rgba(255,193,7,.4)}
+  .center-link{text-align:center;font-size:12.5px;color:var(--text2);margin-top:12px;font-weight:500}
+  /* ---------- REQUEST ---------- */
+  .appbar{height:96px;background:#fff;display:flex;align-items:flex-end;padding:0 18px 14px;gap:12px;font-size:16px;font-weight:700;border-bottom:1px solid var(--divider)}
+  .reqbody{padding:18px 20px}
+  .lbl{font-size:12px;font-weight:600;color:var(--text2);margin:14px 2px 7px;text-transform:uppercase;letter-spacing:.4px}
+  .stops{background:#fff;border:1px solid var(--divider);border-radius:16px;padding:14px}
+  .stop{display:flex;align-items:center;gap:11px;font-size:13.5px}
+  .dot{width:11px;height:11px;border-radius:99px;background:var(--success);flex-shrink:0}
+  .dot.b{background:var(--error)}
+  .vline{width:2px;height:18px;background:var(--divider);margin-left:4.5px}
+  .stop .muted{color:var(--text2)}
+  .vehics{display:flex;gap:10px}
+  .vehic{flex:1;background:#fff;border:1.5px solid var(--divider);border-radius:16px;padding:13px;text-align:center}
+  .vehic.sel{border-color:var(--primary);background:var(--field)}
+  .vehic .em{font-size:26px}
+  .vehic .nm{font-size:13px;font-weight:600;margin-top:3px}
+  .vehic .pr{font-size:12px;color:var(--text2)}
+  .vehic.sel .pr{color:var(--primary);font-weight:600}
+  .fare{background:linear-gradient(135deg,#1A73E8,#0D47A1);border-radius:18px;padding:16px 18px;color:#fff;display:flex;justify-content:space-between;margin-top:16px}
+  .fare .k{font-size:11px;opacity:.8}
+  .fare .v{font-size:18px;font-weight:700;margin-top:2px}
+  .reqbody .btn{margin-top:18px}
+  /* ---------- TRACKING ---------- */
+  .driver-card{background:#fff;border-radius:22px;padding:16px;box-shadow:0 10px 30px rgba(0,0,0,.12)}
+  .drow{display:flex;align-items:center;gap:13px}
+  .avatar{width:52px;height:52px;border-radius:99px;background:linear-gradient(135deg,#1A73E8,#0D47A1);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:19px}
+  .dinfo{flex:1}
+  .dinfo .nm{font-size:14.5px;font-weight:700}
+  .dinfo .vh{font-size:12px;color:var(--text2)}
+  .stars{color:var(--accent);font-size:12px;font-weight:600}
+  .plate{background:var(--accent);border-radius:8px;padding:6px 10px;font-weight:800;font-size:13px;letter-spacing:1px;color:#1A1A2E;border:2px solid #1A1A2E}
+  .eta{display:flex;gap:10px;margin-top:14px}
+  .etabox{flex:1;background:var(--field);border-radius:12px;padding:9px;text-align:center}
+  .etabox .k{font-size:10.5px;color:var(--text2)}
+  .etabox .v{font-size:14px;font-weight:700;color:var(--primary)}
+  .statusline{display:flex;align-items:center;gap:8px;background:#E8F5E9;border-radius:12px;padding:10px 13px;font-size:12.5px;font-weight:600;color:#2E7D32;margin-bottom:12px}
+  .pulse{width:9px;height:9px;border-radius:99px;background:var(--success);animation:pu 1.4s infinite}
+  @keyframes pu{0%,100%{box-shadow:0 0 0 0 rgba(76,175,80,.5)}50%{box-shadow:0 0 0 7px rgba(76,175,80,0)}}
+  /* ---------- DRIVER ---------- */
+  .earn{background:linear-gradient(135deg,#1A73E8,#0D47A1);border-radius:20px;padding:18px;color:#fff;margin-bottom:14px}
+  .earn .k{font-size:12px;opacity:.85}
+  .earn .v{font-size:26px;font-weight:800;margin-top:2px}
+  .earn .row{display:flex;gap:18px;margin-top:12px;font-size:12px}
+  .earn .row b{display:block;font-size:14px}
+  .reqcard{background:#fff;border-radius:20px;padding:16px;border:2px solid var(--accent);box-shadow:0 10px 30px rgba(255,193,7,.25)}
+  .reqcard .t{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+  .reqcard .t .nm{font-weight:700;font-size:14.5px}
+  .badge{background:#FFF8E1;color:#B27B00;font-size:11px;font-weight:700;padding:4px 10px;border-radius:99px}
+  .gain{display:flex;justify-content:space-between;background:var(--field);border-radius:12px;padding:10px 13px;margin-top:12px;font-size:13px}
+  .gain b{color:var(--primary);font-size:15px}
+  .actions{display:flex;gap:10px;margin-top:14px}
+  .actions .btn{padding:12px;font-size:13.5px}
+  .btn.ghost{background:#fff;color:var(--error);border:1.5px solid var(--error);box-shadow:none}
+  .btn.green{background:var(--success);box-shadow:0 8px 18px rgba(76,175,80,.35)}
+  .online{display:flex;justify-content:space-between;align-items:center;background:#fff;border-radius:16px;padding:13px 16px;margin-bottom:14px;font-size:13.5px;font-weight:600}
+  .toggle{width:46px;height:26px;border-radius:99px;background:var(--success);position:relative}
+  .toggle::after{content:'';position:absolute;width:20px;height:20px;border-radius:99px;background:#fff;top:3px;right:3px}
+  footer{text-align:center;margin-top:40px;color:rgba(255,255,255,.6);font-size:12px;font-weight:300}
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="logo">Z</div>
+  <h1>Zue <span>·</span> Mockups</h1>
+  <p>Tu transporte en Fusagasugá — carro y moto, al mejor precio</p>
+</div>
+
+<div class="tabs">
+  <button class="tab active" data-v="v1">Inicio de sesión</button>
+  <button class="tab" data-v="v2">Inicio pasajero</button>
+  <button class="tab" data-v="v3">Solicitar viaje</button>
+  <button class="tab" data-v="v4">Seguimiento</button>
+  <button class="tab" data-v="v5">Modo conductor</button>
+</div>
+
+<div class="stage">
+  <div class="caption">
+    <h2 id="cap-t">Entra en segundos</h2>
+    <p id="cap-p">Crea tu cuenta como pasajero o conductor y empieza a moverte por Fusagasugá.</p>
+    <div class="chips">
+      <span class="chip">🔒 Cuenta segura</span>
+      <span class="chip">🚗 Carro</span>
+      <span class="chip">🏍️ Moto</span>
+      <span class="chip">💛 Tarifas justas</span>
+    </div>
+  </div>
+
+  <div class="phone">
+    <div class="island"></div>
+    <div class="screen">
+
+      <!-- LOGIN -->
+      <div class="view on" id="v1">
+        <div class="login">
+          <div class="status"><span>9:41</span><span class="r">▮▮▮ ⌁ ▰</span></div>
+          <div class="zlogo">Z</div>
+          <h3>Bienvenido a Zue</h3>
+          <div class="sub">Inicia sesión para continuar</div>
+          <div class="fld">✉️ &nbsp;Correo electrónico</div>
+          <div class="fld">🔒 &nbsp;Contraseña &nbsp; <span style="margin-left:auto">👁️</span></div>
+          <div class="forgot">¿Olvidaste tu contraseña?</div>
+          <button class="btn">Iniciar sesión</button>
+          <div class="alt">¿No tienes cuenta? <b>Regístrate</b></div>
+          <div class="roles">
+            <div class="role sel"><span class="ic">🧍</span>Pasajero</div>
+            <div class="role"><span class="ic">🚖</span>Conductor</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PASSENGER HOME -->
+      <div class="view" id="v2">
+        <div class="map">
+          <svg viewBox="0 0 340 700" preserveAspectRatio="xMidYMid slice">
+            <rect width="340" height="700" fill="#E8EDF2"/>
+            <g stroke="#fff" stroke-width="14">
+              <line x1="0" y1="120" x2="340" y2="100"/><line x1="0" y1="260" x2="340" y2="280"/>
+              <line x1="0" y1="430" x2="340" y2="410"/><line x1="60" y1="0" x2="90" y2="700"/>
+              <line x1="200" y1="0" x2="230" y2="700"/><line x1="300" y1="0" x2="320" y2="700"/>
+            </g>
+            <g fill="#D5DEE8"><rect x="105" y="135" width="80" height="100" rx="6"/><rect x="240" y="300" width="50" height="90" rx="6"/><rect x="10" y="300" width="40" height="60" rx="6"/><rect x="100" y="450" width="90" height="80" rx="6"/></g>
+            <g fill="#CDE8CF"><rect x="20" y="140" width="30" height="90" rx="10"/><rect x="250" y="120" width="40" height="60" rx="10"/></g>
+            <circle cx="170" cy="330" r="34" fill="#1A73E8" opacity=".12"/>
+            <circle cx="170" cy="330" r="11" fill="#1A73E8" stroke="#fff" stroke-width="3.5"/>
+            <text x="120" y="555" font-size="20">🚗</text><text x="260" y="200" font-size="18">🏍️</text><text x="35" y="395" font-size="18">🚗</text>
+          </svg>
+        </div>
+        <div class="topbar"><div class="roundbtn">☰</div><div class="roundbtn">🔔</div></div>
+        <div class="greet">👋 ¡Hola, Andrés!</div>
+        <div class="sheet">
+          <div class="grab"></div>
+          <h4>¿A dónde vas hoy?</h4>
+          <div class="search">🔍 &nbsp;Ingresa tu destino</div>
+          <button class="btn yellow">🚕 &nbsp;Solicitar Viaje</button>
+          <div class="center-link">◎ Centrar mi ubicación</div>
+        </div>
+      </div>
+
+      <!-- REQUEST TRIP -->
+      <div class="view" id="v3">
+        <div class="appbar">← &nbsp;Solicitar Viaje</div>
+        <div class="reqbody">
+          <div class="lbl">Ruta</div>
+          <div class="stops">
+            <div class="stop"><span class="dot"></span> Mi ubicación actual</div>
+            <div class="vline"></div>
+            <div class="stop"><span class="dot b"></span> <span>Terminal de Fusagasugá</span></div>
+          </div>
+          <div class="lbl">Tipo de vehículo</div>
+          <div class="vehics">
+            <div class="vehic sel"><div class="em">🚗</div><div class="nm">Carro</div><div class="pr">$8.000</div></div>
+            <div class="vehic"><div class="em">🏍️</div><div class="nm">Moto</div><div class="pr">$5.000</div></div>
+          </div>
+          <div class="fare">
+            <div><div class="k">DISTANCIA ESTIMADA</div><div class="v">4,2 km</div></div>
+            <div style="text-align:right"><div class="k">TARIFA ESTIMADA</div><div class="v">$8.000 COP</div></div>
+          </div>
+          <button class="btn">Confirmar Viaje</button>
+        </div>
+      </div>
+
+      <!-- TRACKING -->
+      <div class="view" id="v4">
+        <div class="map">
+          <svg viewBox="0 0 340 700" preserveAspectRatio="xMidYMid slice">
+            <rect width="340" height="700" fill="#E8EDF2"/>
+            <g stroke="#fff" stroke-width="14">
+              <line x1="0" y1="150" x2="340" y2="130"/><line x1="0" y1="330" x2="340" y2="350"/>
+              <line x1="80" y1="0" x2="110" y2="700"/><line x1="240" y1="0" x2="260" y2="700"/>
+            </g>
+            <g fill="#D5DEE8"><rect x="130" y="170" width="90" height="120" rx="6"/><rect x="270" y="380" width="50" height="100" rx="6"/><rect x="10" y="380" width="50" height="80" rx="6"/></g>
+            <path d="M 95 560 L 95 410 Q 95 380 130 380 L 250 370 Q 252 250 250 160" fill="none" stroke="#1A73E8" stroke-width="6" stroke-linecap="round" stroke-dasharray="1 11"/>
+            <circle cx="95" cy="560" r="10" fill="#4CAF50" stroke="#fff" stroke-width="3"/>
+            <circle cx="250" cy="160" r="10" fill="#F44336" stroke="#fff" stroke-width="3"/>
+            <g transform="translate(236,346)"><rect x="-4" y="-6" width="36" height="36" rx="10" fill="#1A73E8"/><text x="14" y="20" text-anchor="middle" font-size="18">🚗</text></g>
+          </svg>
+        </div>
+        <div class="topbar"><div class="roundbtn">←</div><div class="roundbtn">📞</div></div>
+        <div class="sheet">
+          <div class="grab"></div>
+          <div class="statusline"><span class="pulse"></span> Tu conductor está en camino</div>
+          <div class="driver-card" style="box-shadow:none;padding:4px 0">
+            <div class="drow">
+              <div class="avatar">CM</div>
+              <div class="dinfo">
+                <div class="nm">Carlos Martínez</div>
+                <div class="vh">Chevrolet Spark · Gris</div>
+                <div class="stars">★★★★★ 4,9</div>
+              </div>
+              <div class="plate">XYZ 123</div>
+            </div>
+            <div class="eta">
+              <div class="etabox"><div class="k">LLEGA EN</div><div class="v">3 min</div></div>
+              <div class="etabox"><div class="k">DISTANCIA</div><div class="v">850 m</div></div>
+              <div class="etabox"><div class="k">TARIFA</div><div class="v">$8.000</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DRIVER -->
+      <div class="view" id="v5">
+        <div style="padding:54px 18px 0">
+          <div class="status" style="padding:0 6px 10px"><span>9:41</span><span class="r">▮▮▮ ⌁ ▰</span></div>
+          <div class="online">🟢 Estás en línea <span class="toggle"></span></div>
+          <div class="earn">
+            <div class="k">GANANCIAS DE HOY</div>
+            <div class="v">$86.500 COP</div>
+            <div class="row"><span>Viajes<b>12</b></span><span>Horas<b>5,4</b></span><span>Calificación<b>4,9 ★</b></span></div>
+          </div>
+          <div class="reqcard">
+            <div class="t"><span class="nm">🔔 Nueva solicitud</span><span class="badge">A 2 min</span></div>
+            <div class="stops">
+              <div class="stop"><span class="dot"></span> Centro, Cra 6 #12-40</div>
+              <div class="vline"></div>
+              <div class="stop"><span class="dot b"></span> Barrio Balmoral</div>
+            </div>
+            <div class="gain"><span>Ganancia del viaje</span><b>$8.000 COP</b></div>
+            <div class="actions">
+              <button class="btn ghost">Rechazar</button>
+              <button class="btn green">Aceptar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<footer>Zue · Transporte en Fusagasugá · Mockup promocional</footer>
+
+<script>
+  const caps = {
+    v1:["Entra en segundos","Crea tu cuenta como pasajero o conductor y empieza a moverte por Fusagasugá."],
+    v2:["Pide tu viaje en un toque","Tu ubicación en tiempo real, conductores cercanos y un botón para moverte ya."],
+    v3:["Tarifa clara antes de viajar","Elige carro o moto y conoce tu tarifa estimada antes de confirmar. Sin sorpresas."],
+    v4:["Sigue tu viaje en vivo","Mira a tu conductor en el mapa, su placa, calificación y tiempo de llegada."],
+    v5:["Gana conduciendo con Zue","Recibe solicitudes cercanas, acepta en un toque y controla tus ganancias del día."]
+  };
+  document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(x=>x.classList.remove('on'));
+    t.classList.add('active');
+    document.getElementById(t.dataset.v).classList.add('on');
+    document.getElementById('cap-t').textContent = caps[t.dataset.v][0];
+    document.getElementById('cap-p').textContent = caps[t.dataset.v][1];
+  }));
+</script>
+</body>
+</html>

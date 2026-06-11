@@ -21,6 +21,42 @@ class _LoginPageState extends State<LoginPage> {
   bool _obscurePassword = true;
 
   @override
+  void initState() {
+    super.initState();
+    // Si llegamos aquí porque la cuenta fue bloqueada con la sesión abierta
+    // (el router redirige a login), mostrar el motivo del bloqueo.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final state = context.read<AuthBloc>().state;
+      if (state is AuthBlockedState && mounted) {
+        _showBlockedDialog(state.message);
+      }
+    });
+  }
+
+  void _showBlockedDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.block, color: AppTheme.errorColor),
+            SizedBox(width: 8),
+            Expanded(child: Text('Cuenta bloqueada')),
+          ],
+        ),
+        content: Text(message, style: const TextStyle(fontSize: 14)),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Entendido'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
@@ -104,7 +140,9 @@ class _LoginPageState extends State<LoginPage> {
     return Scaffold(
       body: BlocConsumer<AuthBloc, AuthState>(
         listener: (context, state) {
-          if (state is AuthErrorState) {
+          if (state is AuthBlockedState) {
+            _showBlockedDialog(state.message);
+          } else if (state is AuthErrorState) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(state.message),

@@ -44,4 +44,11 @@ class AuthRepositoryImpl {
   }
 
   Stream<User?> get authStateChanges => _authService.authStateChanges;
+
+  /// Stream del documento del usuario (para detectar bloqueos en vivo).
+  Stream<UserModel?> watchUser(String uid) => _authService.watchUser(uid);
+
+  /// Mensaje estándar para cuentas bloqueadas.
+  String blockedMessage(UserModel user) =>
+      AuthService.blockedAccountMessage(user);
 }

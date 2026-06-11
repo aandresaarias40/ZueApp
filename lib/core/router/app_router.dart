@@ -18,6 +18,8 @@ import '../../features/admin/presentation/pages/admin_dashboard_page.dart';
 import '../../features/admin/presentation/pages/admin_drivers_page.dart';
 import '../../features/admin/presentation/pages/admin_payments_page.dart';
 import '../../features/admin/presentation/pages/admin_trips_page.dart';
+import '../../features/admin/presentation/pages/admin_users_page.dart';
+import '../../features/admin/presentation/pages/admin_admins_page.dart';
 import '../../features/auth/bloc/auth_bloc.dart';
 import '../../features/trips/bloc/trip_bloc.dart';
 
@@ -45,6 +47,8 @@ class AppRoutes {
   static const String adminDrivers = '/admin/drivers';
   static const String adminPayments = '/admin/payments';
   static const String adminTrips = '/admin/trips';
+  static const String adminUsers = '/admin/users';
+  static const String adminAdmins = '/admin/admins';
 }
 
 /// Notificador para GoRouter.
@@ -191,6 +195,14 @@ class AppRouter {
         GoRoute(
           path: AppRoutes.adminTrips,
           builder: (_, __) => const AdminTripsPage(),
+        ),
+        GoRoute(
+          path: AppRoutes.adminUsers,
+          builder: (_, __) => const AdminUsersPage(),
+        ),
+        GoRoute(
+          path: AppRoutes.adminAdmins,
+          builder: (_, __) => const AdminAdminsPage(),
         ),
       ],
       errorBuilder: (context, state) => Scaffold(

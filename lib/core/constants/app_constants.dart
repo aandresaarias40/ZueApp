@@ -59,6 +59,23 @@ class AppConstants {
   // Anti-fraude: colección de identidades de conductores
   static const String driverIdentitiesCollection = 'driver_identities';
 
+  // ── Moderación / bloqueos administrativos ────────────────────────────────
+  static const String adminsCollection = 'admins';
+  static const String moderationLogCollection = 'moderation_log';
+
+  // Categorías de bloqueo (medida disciplinaria / incidente)
+  static const String blockCategoryIncident = 'incident';
+  static const String blockCategoryDisciplinary = 'disciplinary';
+  static const String blockCategoryFraud = 'fraud';
+  static const String blockCategoryOther = 'other';
+
+  static const Map<String, String> blockCategoryLabels = {
+    blockCategoryIncident: 'Incidente',
+    blockCategoryDisciplinary: 'Medida disciplinaria',
+    blockCategoryFraud: 'Fraude',
+    blockCategoryOther: 'Otro',
+  };
+
   // Google Maps
   static const double defaultLat = 4.3478;  // Fusagasugá, Cundinamarca
   static const double defaultLng = -74.3649;
@@ -138,4 +155,10 @@ class AppConstants {
   // Formato: https://{functionname}-avqcfqbgeq-uc.a.run.app
   static const String cfCreatePSETransaction =
       'https://createpsetransaction-avqcfqbgeq-uc.a.run.app';
+
+  // Moderación (solo admins; la CF verifica el token y la colección admins)
+  static const String cfSetUserBlocked =
+      'https://setuserblocked-avqcfqbgeq-uc.a.run.app';
+  static const String cfSetAdminRole =
+      'https://setadminrole-avqcfqbgeq-uc.a.run.app';
 }

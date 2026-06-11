@@ -133,7 +133,25 @@ class AdminDashboardPage extends StatelessWidget {
               title: 'Transportadores',
               subtitle: 'Ver, suspender y gestionar conductores',
               color: AppTheme.primaryColor,
-              onTap: () => context.go(AppRoutes.adminDrivers),
+              onTap: () => context.push(AppRoutes.adminDrivers),
+            ),
+            const SizedBox(height: 10),
+
+            _AdminMenuCard(
+              icon: Icons.manage_accounts_outlined,
+              title: 'Usuarios',
+              subtitle: 'Bloquear cuentas por incidentes o medidas disciplinarias',
+              color: AppTheme.errorColor,
+              onTap: () => context.push(AppRoutes.adminUsers),
+            ),
+            const SizedBox(height: 10),
+
+            _AdminMenuCard(
+              icon: Icons.admin_panel_settings_outlined,
+              title: 'Administradores',
+              subtitle: 'Promover o revocar administradores de la plataforma',
+              color: AppTheme.warningColor,
+              onTap: () => context.push(AppRoutes.adminAdmins),
             ),
             const SizedBox(height: 10),
 
@@ -142,7 +160,7 @@ class AdminDashboardPage extends StatelessWidget {
               title: 'Pagos & Suscripciones',
               subtitle: 'Control de pagos PSE y estados de suscripción',
               color: AppTheme.successColor,
-              onTap: () => context.go(AppRoutes.adminPayments),
+              onTap: () => context.push(AppRoutes.adminPayments),
             ),
             const SizedBox(height: 10),
 
@@ -151,7 +169,7 @@ class AdminDashboardPage extends StatelessWidget {
               title: 'Viajes',
               subtitle: 'Monitoreo y despacho manual de viajes',
               color: AppTheme.accentColor,
-              onTap: () => context.go(AppRoutes.adminTrips),
+              onTap: () => context.push(AppRoutes.adminTrips),
             ),
             const SizedBox(height: 24),
 
