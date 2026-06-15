@@ -5,6 +5,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/app_snackbar.dart';
 import '../../../../models/trip_model.dart';
 import '../../../../services/trip_service.dart';
 import '../../../auth/bloc/auth_bloc.dart';
@@ -37,10 +38,7 @@ class _DriverActiveTripPageState extends State<DriverActiveTripPage> {
       await _tripService.startTrip(widget.tripId);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Error: $e'),
-          backgroundColor: AppTheme.errorColor,
-        ));
+        AppSnackBar.error(context, 'Error: $e');
       }
     } finally {
       if (mounted) setState(() => _isActionLoading = false);
@@ -78,10 +76,7 @@ class _DriverActiveTripPageState extends State<DriverActiveTripPage> {
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Error: $e'),
-          backgroundColor: AppTheme.errorColor,
-        ));
+        AppSnackBar.error(context, 'Error: $e');
       }
     } finally {
       if (mounted) setState(() => _isActionLoading = false);
@@ -143,10 +138,7 @@ class _DriverActiveTripPageState extends State<DriverActiveTripPage> {
       body: BlocConsumer<TripBloc, TripState>(
         listener: (context, state) {
           if (state is TripCancelledState) {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('Viaje cancelado'),
-              backgroundColor: AppTheme.warningColor,
-            ));
+            AppSnackBar.warning(context, 'Viaje cancelado');
             context.go(AppRoutes.driverHome);
           } else if (state is TripCompletedState) {
             _showTripCompletedDialog(state.trip);

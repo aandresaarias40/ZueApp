@@ -7,6 +7,7 @@ import 'dart:async';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/app_snackbar.dart';
 import '../../../auth/bloc/auth_bloc.dart';
 import '../../bloc/driver_bloc.dart';
 import '../../../trips/bloc/trip_bloc.dart';
@@ -140,12 +141,7 @@ class _DriverHomePageState extends State<DriverHomePage> {
     final driverBloc  = context.read<DriverBloc>();
     final driverState = driverBloc.state;
     if (driverState is! DriverLoadedState) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Cargando datos del conductor...'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+      AppSnackBar.info(context, 'Cargando datos del conductor...');
       return;
     }
 
@@ -185,12 +181,9 @@ class _DriverHomePageState extends State<DriverHomePage> {
       if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-                'Para recibir viajes necesitas permitir el acceso a tu ubicación'),
-            backgroundColor: AppTheme.warningColor,
-          ),
+        AppSnackBar.warning(
+          context,
+          'Para recibir viajes necesitas permitir el acceso a tu ubicación',
         );
         return;
       }
@@ -351,11 +344,9 @@ class _DriverHomePageState extends State<DriverHomePage> {
 
     // Bloquear si ya tiene un viaje activo
     if (driver.status == AppConstants.driverStatusBusy) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Ya tienes un viaje activo. Complétalo primero.'),
-          backgroundColor: AppTheme.warningColor,
-        ),
+      AppSnackBar.warning(
+        context,
+        'Ya tienes un viaje activo. Complétalo primero.',
       );
       return;
     }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/app_snackbar.dart';
 import '../../../../models/driver_model.dart';
 import '../../../../services/driver_service.dart';
 import '../widgets/block_reason_dialog.dart';
@@ -124,21 +125,14 @@ class _AdminDriversPageState extends State<AdminDriversPage>
     await _driverService.suspendDriver(
         driver.id, '[$label] ${result.reason}');
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${driver.name} fue suspendido'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      AppSnackBar.warning(context, '${driver.name} fue suspendido');
     }
   }
 
   void _reactivateDriver(DriverModel driver) async {
     await _driverService.reactivateDriver(driver.id);
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${driver.name} fue reactivado')),
-      );
+      AppSnackBar.success(context, '${driver.name} fue reactivado');
     }
   }
 }

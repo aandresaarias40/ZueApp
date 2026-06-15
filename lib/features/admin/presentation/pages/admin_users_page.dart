@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/app_snackbar.dart';
 import '../../../../models/user_model.dart';
 import '../../../../services/admin_service.dart';
 import '../widgets/block_reason_dialog.dart';
@@ -159,22 +160,13 @@ class _AdminUsersPageState extends State<AdminUsersPage>
     try {
       await action();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(successMessage),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        AppSnackBar.success(context, successMessage);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content:
-                Text(e.toString().replaceFirst('Exception: ', '')),
-            backgroundColor: AppTheme.errorColor,
-            behavior: SnackBarBehavior.floating,
-          ),
+        AppSnackBar.error(
+          context,
+          e.toString().replaceFirst('Exception: ', ''),
         );
       }
     } finally {

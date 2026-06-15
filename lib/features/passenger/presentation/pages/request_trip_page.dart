@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/app_snackbar.dart';
 import '../../../auth/bloc/auth_bloc.dart';
 import '../../../trips/bloc/trip_bloc.dart';
 import '../../../../services/trip_service.dart';
@@ -110,15 +111,10 @@ class _RequestTripPageState extends State<RequestTripPage> {
           if (distanceKm > 30) {
             if (!mounted) return;
             setState(() => _isSearching = false);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'Destino muy lejos (${distanceKm.toStringAsFixed(0)} km). '
-                  'Verifica la dirección.',
-                ),
-                backgroundColor: AppTheme.warningColor,
-                duration: const Duration(seconds: 3),
-              ),
+            AppSnackBar.warning(
+              context,
+              'Destino muy lejos (${distanceKm.toStringAsFixed(0)} km). '
+              'Verifica la dirección.',
             );
             return;
           }
@@ -147,11 +143,9 @@ class _RequestTripPageState extends State<RequestTripPage> {
       } else {
         if (!mounted) return;
         setState(() => _isSearching = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No se encontró esa dirección. Intenta ser más específico.'),
-            duration: Duration(seconds: 2),
-          ),
+        AppSnackBar.info(
+          context,
+          'No se encontró esa dirección. Intenta ser más específico.',
         );
       }
     } catch (e) {
@@ -266,12 +260,7 @@ class _RequestTripPageState extends State<RequestTripPage> {
           if (state is TripRequestedState) {
             context.go('/passenger/tracking/${state.trip.id}');
           } else if (state is TripErrorState) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(state.message),
-                backgroundColor: AppTheme.errorColor,
-              ),
-            );
+            AppSnackBar.error(context, state.message);
           }
         },
         child: Padding(

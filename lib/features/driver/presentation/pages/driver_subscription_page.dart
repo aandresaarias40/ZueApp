@@ -6,6 +6,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/app_snackbar.dart';
 import '../../bloc/driver_bloc.dart';
 import '../../../../services/payment_service.dart';
 
@@ -42,12 +43,7 @@ class _DriverSubscriptionPageState extends State<DriverSubscriptionPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('No se pudo cargar la lista de bancos: $e'),
-          backgroundColor: AppTheme.errorColor,
-        ),
-      );
+      AppSnackBar.error(context, 'No se pudo cargar la lista de bancos: $e');
       return;
     }
 
@@ -97,12 +93,7 @@ class _DriverSubscriptionPageState extends State<DriverSubscriptionPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error al iniciar pago: $e'),
-          backgroundColor: AppTheme.errorColor,
-        ),
-      );
+      AppSnackBar.error(context, 'Error al iniciar pago: $e');
     }
   }
 
@@ -142,31 +133,18 @@ class _DriverSubscriptionPageState extends State<DriverSubscriptionPage> {
 
     switch (finalStatus) {
       case 'approved':
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('¡Pago aprobado! Tu suscripción está activa.'),
-            backgroundColor: AppTheme.successColor,
-          ),
+        AppSnackBar.success(
+          context,
+          '¡Pago aprobado! Tu suscripción está activa.',
         );
         context.go(AppRoutes.driverHome);
       case 'pending_timeout':
         // El banco PSE puede confirmar horas después — el webhook lo resolverá
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Pago en proceso. Tu banco confirmará en breve.',
-            ),
-          ),
-        );
+        AppSnackBar.info(context, 'Pago en proceso. Tu banco confirmará en breve.');
         context.go(AppRoutes.driverHome);
       default:
         setState(() => _paymentUrl = null);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('El pago fue rechazado. Intenta de nuevo.'),
-            backgroundColor: AppTheme.errorColor,
-          ),
-        );
+        AppSnackBar.error(context, 'El pago fue rechazado. Intenta de nuevo.');
     }
   }
 

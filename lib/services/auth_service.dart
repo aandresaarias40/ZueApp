@@ -311,9 +311,13 @@ class AuthService {
   String _mapFirebaseAuthException(FirebaseAuthException e) {
     switch (e.code) {
       case 'user-not-found':
-        return 'No existe una cuenta con este correo electrónico.';
       case 'wrong-password':
-        return 'Contraseña incorrecta. Intenta de nuevo.';
+      case 'invalid-credential':
+      case 'INVALID_LOGIN_CREDENTIALS':
+        // Firebase, con la protección anti-enumeración activada, devuelve
+        // 'invalid-credential' tanto si el correo no existe como si la
+        // contraseña es incorrecta. Mensaje genérico para no filtrar cuál es.
+        return 'Correo o contraseña incorrectos. Verifica tus datos.';
       case 'email-already-in-use':
         return 'Este correo ya está registrado. Intenta iniciar sesión.';
       case 'weak-password':
@@ -327,7 +331,7 @@ class AuthService {
       case 'network-request-failed':
         return 'Sin conexión a internet. Verifica tu conexión.';
       default:
-        return 'Error de autenticación: ${e.message}';
+        return 'No pudimos iniciar sesión. Intenta de nuevo en un momento.';
     }
   }
 }

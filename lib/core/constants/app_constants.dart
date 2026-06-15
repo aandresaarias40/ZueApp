@@ -52,6 +52,11 @@ class AppConstants {
   static const double motoBaseFare = 1500;           // Tarifa base moto (rutas >= 6 km)
   static const double motoPerKmRate = 600;           // $600 por km adicional (moto)
 
+  // Recargo nocturno (aplica a carro y moto)
+  static const double nightSurcharge = 1000;          // $1.000 COP extra en horario nocturno
+  static const int nightStartHour = 19;               // 7:00 pm
+  static const int nightEndHour = 5;                  // 5:00 am
+
   // Período de prueba para conductores nuevos
   static const int driverTrialDays = 3;
   static const String subscriptionStatusTrial = 'trial';

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
@@ -13,6 +15,7 @@ import 'features/auth/data/repositories/auth_repository_impl.dart';
 import 'features/driver/bloc/driver_bloc.dart';
 import 'features/trips/bloc/trip_bloc.dart';
 import 'firebase_options.dart';
+import 'services/server_time_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,6 +38,10 @@ void main() async {
     persistenceEnabled: true,
     cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
   );
+
+  // Sincronizar la hora REAL de servidor (para el recargo nocturno 7pm–5am).
+  // No bloquea el arranque: si falla, se reintenta en segundo plano.
+  unawaited(ServerTimeService.instance.sync());
 
   // Orientación fija vertical
   await SystemChrome.setPreferredOrientations([

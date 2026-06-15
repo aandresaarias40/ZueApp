@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/app_snackbar.dart';
 import '../../../../services/auth_service.dart';
 import '../widgets/auth_text_field.dart';
 
@@ -120,11 +121,9 @@ class _RegisterDriverPageState extends State<RegisterDriverPage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.toString().replaceFirst('Exception: ', '')),
-            backgroundColor: AppTheme.errorColor,
-          ),
+        AppSnackBar.error(
+          context,
+          e.toString().replaceFirst('Exception: ', ''),
         );
       }
     } finally {

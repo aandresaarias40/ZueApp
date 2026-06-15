@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/trip_model.dart';
 import '../core/constants/app_constants.dart';
+import 'server_time_service.dart';
 
 class TripService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -330,27 +331,39 @@ class TripService {
             snapshot.docs.map((doc) => TripModel.fromFirestore(doc)).toList());
   }
 
+  // ¿Es horario nocturno? (7:00 pm a 5:00 am)
+  // Usa la hora REAL de servidor (no la del teléfono), en hora de Colombia.
+  bool isNightTime([DateTime? at]) {
+    final int hour = (at ?? ServerTimeService.instance.nowColombia()).hour;
+    return hour >= AppConstants.nightStartHour ||
+        hour < AppConstants.nightEndHour;
+  }
+
   // Calcular tarifa estimada (COP) — Tarifas de Fusagasugá
   // [vehicleType] puede ser AppConstants.vehicleCar o AppConstants.vehicleMoto
+  // En horario nocturno (7pm–5am) se aplica un recargo de $1.000 (carro y moto).
   double estimateFare(double distanceKm,
-      {String vehicleType = AppConstants.vehicleCar}) {
+      {String vehicleType = AppConstants.vehicleCar, DateTime? at}) {
+    final double surcharge =
+        isNightTime(at) ? AppConstants.nightSurcharge : 0;
+
     if (vehicleType == AppConstants.vehicleMoto) {
       // Moto: tarifa fija $4.500 para rutas < 6 km
       if (distanceKm < AppConstants.minimumFareDistanceKm) {
-        return AppConstants.motoMinimumFare;
+        return AppConstants.motoMinimumFare + surcharge;
       }
       // Moto: tarifa base $1.500 + $600 por km
       final double fare =
           AppConstants.motoBaseFare + (distanceKm * AppConstants.motoPerKmRate);
-      return (fare / 100).ceil() * 100.0;
+      return (fare / 100).ceil() * 100.0 + surcharge;
     }
     // Carro: tarifa fija $8.000 para rutas < 6 km (tarifa oficial Fusagasugá)
     if (distanceKm < AppConstants.minimumFareDistanceKm) {
-      return AppConstants.minimumFare;
+      return AppConstants.minimumFare + surcharge;
     }
     // Carro: tarifa base $3.000 + $1.200 por km
     final double fare =
         AppConstants.carBaseFare + (distanceKm * AppConstants.carPerKmRate);
-    return (fare / 100).ceil() * 100.0; // Redondear a centenas
+    return (fare / 100).ceil() * 100.0 + surcharge; // Redondear a centenas
   }
 }

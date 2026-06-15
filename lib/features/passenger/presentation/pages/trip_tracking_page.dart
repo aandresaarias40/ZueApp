@@ -6,6 +6,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/app_snackbar.dart';
 import '../../../../models/trip_model.dart';
 import '../../../trips/bloc/trip_bloc.dart';
 import '../widgets/trip_status_card.dart';
@@ -116,12 +117,7 @@ class _TripTrackingPageState extends State<TripTrackingPage> {
               ),
             );
           } else if (state is TripCancelledState) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('El viaje fue cancelado'),
-                backgroundColor: AppTheme.warningColor,
-              ),
-            );
+            AppSnackBar.warning(context, 'El viaje fue cancelado');
             context.go(AppRoutes.passengerHome);
           }
         },

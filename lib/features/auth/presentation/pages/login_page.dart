@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/app_snackbar.dart';
 import '../../../../services/auth_service.dart';
 import '../../bloc/auth_bloc.dart';
 import '../widgets/auth_text_field.dart';
@@ -125,13 +126,9 @@ class _LoginPageState extends State<LoginPage> {
       // No revelar si el correo existe o no (evita enumeración de cuentas).
     }
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Si el correo está registrado, recibirás un enlace de recuperación.',
-        ),
-        behavior: SnackBarBehavior.floating,
-      ),
+    AppSnackBar.info(
+      context,
+      'Si el correo está registrado, recibirás un enlace de recuperación.',
     );
   }
 
@@ -143,13 +140,7 @@ class _LoginPageState extends State<LoginPage> {
           if (state is AuthBlockedState) {
             _showBlockedDialog(state.message);
           } else if (state is AuthErrorState) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(state.message),
-                backgroundColor: AppTheme.errorColor,
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
+            AppSnackBar.error(context, state.message);
           }
         },
         builder: (context, state) {

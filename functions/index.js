@@ -10,6 +10,7 @@
 
 const { onRequest } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
+const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const admin  = require("firebase-admin");
 const Redis  = require("ioredis");
 const crypto = require("crypto");
@@ -43,6 +44,59 @@ const COL_DRIVERS       = "drivers";
 const UPSTASH_HOST     = process.env.UPSTASH_HOST     || "";
 const UPSTASH_PORT     = parseInt(process.env.UPSTASH_PORT || "6379", 10);
 const UPSTASH_PASSWORD = process.env.UPSTASH_PASSWORD || "";
+
+// ── Tarifas Fusagasugá (COP) — deben coincidir con AppConstants en Flutter ───
+const FARE = {
+  minimumFareDistanceKm: 6.0,  // rutas < 6 km → tarifa fija
+  // Carro
+  minimumFare:  8000,          // tarifa fija mínima carro
+  carBaseFare:  3000,          // base carro (>= 6 km)
+  carPerKmRate: 1200,          // $/km adicional carro
+  // Moto
+  motoMinimumFare:  4500,      // tarifa fija mínima moto
+  motoBaseFare:     1500,      // base moto (>= 6 km)
+  motoPerKmRate:    600,       // $/km adicional moto
+  // Recargo nocturno (carro y moto)
+  nightSurcharge: 1000,        // $1.000 extra de 7pm a 5am
+  nightStartHour: 19,          // 7:00 pm
+  nightEndHour:   5,           // 5:00 am
+};
+const VEHICLE_MOTO = "moto";
+
+// Hora (0-23) en zona horaria de Colombia para una fecha dada (hora de servidor).
+function bogotaHour(date) {
+  const h = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Bogota",
+    hour: "numeric",
+    hour12: false,
+  }).format(date);
+  return parseInt(h, 10) % 24;
+}
+
+// ¿Es horario nocturno en Colombia? (7:00 pm a 5:00 am)
+function isNightTimeBogota(date) {
+  const hour = bogotaHour(date);
+  return hour >= FARE.nightStartHour || hour < FARE.nightEndHour;
+}
+
+// Tarifa oficial (COP) calculada en el servidor, con recargo nocturno si aplica.
+// [now] es la hora de servidor; el recargo NO depende del reloj del teléfono.
+function computeFare(distanceKm, vehicleType, now) {
+  const surcharge = isNightTimeBogota(now) ? FARE.nightSurcharge : 0;
+  const ceil100 = (v) => Math.ceil(v / 100) * 100;
+
+  if (vehicleType === VEHICLE_MOTO) {
+    if (distanceKm < FARE.minimumFareDistanceKm) {
+      return FARE.motoMinimumFare + surcharge;
+    }
+    return ceil100(FARE.motoBaseFare + distanceKm * FARE.motoPerKmRate) + surcharge;
+  }
+  // Carro (default)
+  if (distanceKm < FARE.minimumFareDistanceKm) {
+    return FARE.minimumFare + surcharge;
+  }
+  return ceil100(FARE.carBaseFare + distanceKm * FARE.carPerKmRate) + surcharge;
+}
 
 // ── Singleton Redis por instancia de función ───────────────────────────────────
 let _redis = null;
@@ -777,4 +831,54 @@ exports.cancelStaleTrips = onSchedule({
 
   await batch.commit();
   log.info(`cancelStaleTrips: ${stale.size} viaje(s) cancelados por timeout`);
+});
+
+// =============================================================================
+// onTripCreated — recalcula la tarifa OFICIAL en el servidor.
+//
+// El estimado que envía el cliente (Flutter) es solo referencial. Aquí, al
+// crearse el viaje, se recalcula la tarifa con la HORA DE SERVIDOR (zona
+// America/Bogota), por lo que el recargo nocturno (7pm–5am, $1.000) no puede
+// manipularse cambiando el reloj del teléfono. Se sobrescribe `fare` con el
+// valor autoritativo y se guardan metadatos para auditoría.
+// =============================================================================
+exports.onTripCreated = onDocumentCreated({
+  document: "trips/{tripId}",
+  ...OPTS,
+}, async (event) => {
+  const snap = event.data;
+  if (!snap) return;
+  const trip = snap.data() || {};
+
+  const distanceKm  = typeof trip.distance === "number" ? trip.distance : null;
+  const vehicleType = trip.requestedVehicleType || "car";
+
+  // Sin distancia no se puede calcular la tarifa oficial: se deja el estimado.
+  if (distanceKm == null) {
+    log.warn("onTripCreated: viaje sin distancia, no se recalcula tarifa", {
+      tripId: event.params.tripId,
+    });
+    return;
+  }
+
+  const now          = new Date();                 // hora de servidor
+  const night        = isNightTimeBogota(now);
+  const officialFare = computeFare(distanceKm, vehicleType, now);
+
+  // Evita reescrituras innecesarias (y bucles) si ya coincide.
+  if (trip.fare === officialFare && trip.nightFareApplied === night) return;
+
+  await snap.ref.update({
+    fare:             officialFare,
+    estimatedFare:    trip.fare ?? null,           // conserva el estimado del cliente
+    nightFareApplied: night,
+    nightSurcharge:   night ? FARE.nightSurcharge : 0,
+    fareCalculatedAt: admin.firestore.Timestamp.fromDate(now),
+  });
+
+  log.info("onTripCreated: tarifa recalculada", {
+    tripId: event.params.tripId,
+    officialFare,
+    night,
+  });
 });
