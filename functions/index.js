@@ -38,6 +38,11 @@ const COL_PAYMENTS      = "payments";
 const COL_SUBSCRIPTIONS = "subscriptions";
 const COL_DRIVERS       = "drivers";
 
+// ── Precios de suscripción (centavos COP) — FUENTE DE VERDAD del servidor ────
+// Deben coincidir con AppConstants.weeklyPrice/monthlyPrice (×100) en Flutter.
+// 40.000 COP → 4.000.000 centavos | 140.000 COP → 14.000.000 centavos.
+const PLAN_AMOUNT_CENTS = { weekly: 4000000, monthly: 14000000 };
+
 // ── Credenciales Upstash (SOLO en servidor — nunca en el APK) ─────────────────
 // Configurar en functions/.env (local) o Firebase Console → Functions → Variables de entorno.
 // ⚠️  NUNCA pongas estos valores directamente en este archivo ni en git.
@@ -169,10 +174,17 @@ async function verifyToken(req) {
   }
 }
 
+// Validación de rango de coordenadas geográficas (WGS84).
+function isValidLat(v) { return typeof v === "number" && !isNaN(v) && v >= -90  && v <= 90; }
+function isValidLng(v) { return typeof v === "number" && !isNaN(v) && v >= -180 && v <= 180; }
+
 function setCors(req, res) {
   const origin = req.headers.origin || "";
-  const allowed = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
-  res.set("Access-Control-Allow-Origin", allowed);
+  // Solo reflejar el header si el origen está explícitamente permitido.
+  // Si no, se omite Access-Control-Allow-Origin y el navegador bloquea la respuesta.
+  if (ALLOWED_ORIGINS.includes(origin)) {
+    res.set("Access-Control-Allow-Origin", origin);
+  }
   res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
   res.set("Vary", "Origin");
@@ -192,6 +204,8 @@ exports.updateDriverLocation = onRequest(OPTS, async (req, res) => {
   const { driverId, lat, lng, status = "active" } = req.body;
   if (!driverId || lat == null || lng == null)
     return res.status(400).json({ error: "Faltan campos: driverId, lat, lng" });
+  if (!isValidLat(lat) || !isValidLng(lng))
+    return res.status(400).json({ error: "Coordenadas inválidas (lat/lng fuera de rango)" });
   if (user.uid !== driverId)
     return res.status(403).json({ error: "No puedes actualizar posicion de otro conductor" });
 
@@ -219,15 +233,18 @@ exports.getNearbyDrivers = onRequest(OPTS, async (req, res) => {
   if (!user) return res.status(401).json({ error: "No autorizado" });
 
   const { lat, lng, radiusKm = 10, limit = 10 } = req.body;
-  if (lat == null || lng == null)
-    return res.status(400).json({ error: "Faltan campos: lat, lng" });
+  if (!isValidLat(lat) || !isValidLng(lng))
+    return res.status(400).json({ error: "Coordenadas inválidas (lat/lng fuera de rango)" });
+  // 🔒 Anti-DoS: acotar radio y límite para no forzar GEOSEARCH masivos en Redis.
+  const safeRadiusKm = Math.min(Math.max(Number(radiusKm) || 10, 0.1), 50);
+  const safeLimit    = Math.min(Math.max(parseInt(limit, 10) || 10, 1), 50);
 
   const redis   = getRedis();
   const results = await redis.call(
     "GEOSEARCH", GEO_KEY,
     "FROMLONLAT", lng, lat,
-    "BYRADIUS", radiusKm, "km",
-    "ASC", "COUNT", limit,
+    "BYRADIUS", safeRadiusKm, "km",
+    "ASC", "COUNT", safeLimit,
     "WITHCOORD", "WITHDIST",
   );
 
@@ -488,7 +505,10 @@ exports.wompiWebhook = onRequest({ ...OPTS, invoker: "public" }, async (req, res
   if (req.method !== "POST")    return res.status(405).json({ error: "Metodo no permitido" });
 
   // 0. Rate limiting por IP (distribuido en Redis)
-  const clientIp = req.headers["x-forwarded-for"]?.split(",")[0].trim() || req.ip || "unknown";
+  // El primer valor de X-Forwarded-For lo controla el cliente (spoofeable).
+  // En Cloud Run/Functions, req.ip y el ÚLTIMO valor de XFF los fija el balanceador.
+  const xff = (req.headers["x-forwarded-for"] || "").split(",").map((p) => p.trim()).filter(Boolean);
+  const clientIp = req.ip || (xff.length ? xff[xff.length - 1] : "unknown");
   if (await isRateLimited(clientIp)) {
     log.warn("wompiWebhook: rate limit excedido", { ip: clientIp });
     return res.status(429).json({ error: "Demasiadas peticiones" });
@@ -583,6 +603,24 @@ exports.wompiWebhook = onRequest({ ...OPTS, invoker: "public" }, async (req, res
   const plan     = paymentData.plan;
   const amount   = paymentData.amount;
 
+  // 🔒 Anti-fraude (defensa en profundidad): el monto REALMENTE cobrado por
+  // Wompi debe coincidir con el precio del plan. createPSETransaction ya valida,
+  // pero esto cierra el hueco aunque el pago se haya creado por otra vía.
+  const paidCents     = tx.amount_in_cents;
+  const expectedCents = PLAN_AMOUNT_CENTS[plan];
+  if (txStatus === "APPROVED" && paidCents !== expectedCents) {
+    log.error("wompiWebhook: monto pagado no coincide con el plan — posible fraude", {
+      plan, paidCents, expectedCents, txId,
+    });
+    await paymentRef.update({
+      status:        "declined",
+      failedAt:      admin.firestore.Timestamp.now(),
+      txStatus:      "AMOUNT_MISMATCH",
+      transactionId: txId,
+    });
+    return res.status(200).json({ ok: true, status: "declined", reason: "amount_mismatch" });
+  }
+
   if (txStatus === "APPROVED") {
     const now     = admin.firestore.Timestamp.now();
     const endDate = plan === "weekly"
@@ -646,7 +684,7 @@ const WOMPI_INTEGRITY_SECRET = process.env.WOMPI_INTEGRITY_SECRET || "";
 const WOMPI_BASE_URL = WOMPI_USE_SANDBOX
   ? "https://sandbox.wompi.co/v1"
   : "https://production.wompi.co/v1";
-const WOMPI_REDIRECT_URL = "https://zue-app.web.app/payment/callback";
+const WOMPI_REDIRECT_URL = process.env.WOMPI_REDIRECT_URL || "https://zue-app.web.app/payment/callback";
 
 // =============================================================================
 // createPSETransaction — crea transacción PSE en Wompi de forma segura.
@@ -700,7 +738,21 @@ exports.createPSETransaction = onRequest(OPTS, async (req, res) => {
 
   // Calcular firma de integridad (SOLO en servidor)
   // Wompi: SHA256(reference + amountInCents + currency + integritySecret)
-  const amountInt    = parseInt(amountInCents, 10);
+  const amountInt = parseInt(amountInCents, 10);
+
+  // 🔒 Anti-fraude: el monto DEBE coincidir EXACTAMENTE con el precio del plan.
+  // Sin esto, un cliente malicioso podría enviar amountInCents=100 ($1 COP) y,
+  // al aprobarse, obtener una suscripción premium completa.
+  const expectedCents = PLAN_AMOUNT_CENTS[plan];
+  if (!expectedCents) {
+    log.error("createPSETransaction: plan desconocido", { plan });
+    return res.status(400).json({ error: "Plan inválido" });
+  }
+  if (amountInt !== expectedCents) {
+    log.error("createPSETransaction: monto inconsistente con el plan", { plan, amountInt, expectedCents });
+    return res.status(400).json({ error: "Monto de pago inválido para el plan seleccionado" });
+  }
+
   const signatureStr = `${reference}${amountInt}COP${WOMPI_INTEGRITY_SECRET}`;
   const integrityHash = crypto.createHash("sha256").update(signatureStr).digest("hex");
 
@@ -835,6 +887,18 @@ exports.cancelStaleTrips = onSchedule({
   log.info(`cancelStaleTrips: ${stale.size} viaje(s) cancelados por timeout`);
 });
 
+// Distancia en km entre dos puntos (fórmula de Haversine).
+// Devuelve null si alguna coordenada es inválida o cero (sin fix de GPS).
+function haversineDistanceKm(lat1, lng1, lat2, lng2) {
+  const ok = (v, max) => typeof v === "number" && !isNaN(v) && v !== 0 && Math.abs(v) <= max;
+  if (!ok(lat1, 90) || !ok(lat2, 90) || !ok(lng1, 180) || !ok(lng2, 180)) return null;
+  const R = 6371, toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1), dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 +
+            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 // =============================================================================
 // onTripCreated — recalcula la tarifa OFICIAL en el servidor.
 //
@@ -852,12 +916,29 @@ exports.onTripCreated = onDocumentCreated({
   if (!snap) return;
   const trip = snap.data() || {};
 
-  const distanceKm  = typeof trip.distance === "number" ? trip.distance : null;
+  const clientDistanceKm = typeof trip.distance === "number" ? trip.distance : null;
   const vehicleType = trip.requestedVehicleType || "car";
 
-  // Sin distancia no se puede calcular la tarifa oficial: se deja el estimado.
+  // 🔒 Anti-fraude: NO confiar en trip.distance (el cliente podría enviar 0.1 km
+  // para un viaje de 50 km). Recalculamos la distancia en línea recta (Haversine)
+  // desde origen/destino y usamos el mayor entre esa y la del cliente, ya que la
+  // ruta por calle SIEMPRE es >= la distancia en línea recta.
+  const haversineKm = haversineDistanceKm(
+    trip.originLat, trip.originLng, trip.destinationLat, trip.destinationLng);
+
+  let distanceKm = clientDistanceKm;
+  if (haversineKm != null) {
+    distanceKm = clientDistanceKm != null ? Math.max(clientDistanceKm, haversineKm) : haversineKm;
+    if (clientDistanceKm != null && clientDistanceKm < haversineKm - 0.05) {
+      log.warn("onTripCreated: distancia del cliente menor que la línea recta — posible fraude", {
+        tripId: event.params.tripId, clientDistanceKm, haversineKm,
+      });
+    }
+  }
+
+  // Sin distancia (ni del cliente ni de coordenadas) no se puede calcular: se deja el estimado.
   if (distanceKm == null) {
-    log.warn("onTripCreated: viaje sin distancia, no se recalcula tarifa", {
+    log.warn("onTripCreated: viaje sin distancia ni coordenadas, no se recalcula tarifa", {
       tripId: event.params.tripId,
     });
     return;

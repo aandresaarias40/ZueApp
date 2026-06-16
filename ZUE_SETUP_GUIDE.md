@@ -81,57 +81,31 @@ En Firebase Console, habilita:
 
 ### 6. Reglas de Firestore
 
-En Firebase Console → Firestore → Reglas:
-
-```javascript
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-
-    // Usuarios solo pueden leer/escribir su propio documento
-    match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-      allow read: if request.auth != null;
-    }
-
-    // Conductores: pueden actualizar su propio doc
-    match /drivers/{driverId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == driverId;
-      // Admins pueden escribir en cualquier conductor
-      allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
-
-    // Viajes
-    match /trips/{tripId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null;
-      allow update: if request.auth != null;
-    }
-
-    // Pagos: solo admins y el propio conductor
-    match /payments/{paymentId} {
-      allow read: if request.auth != null && (
-        resource.data.driverId == request.auth.uid ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
-      );
-      allow write: if request.auth != null;
-    }
-
-    // Suscripciones
-    match /subscriptions/{subId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
-    }
-
-    // Admins: solo accesible por admins
-    match /admins/{adminId} {
-      allow read, write: if request.auth != null &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
-  }
-}
-```
+> ⚠️ **NO copies reglas a mano en la consola.** La fuente de verdad de las
+> reglas de seguridad es el archivo [`firestore.rules`](./firestore.rules) del
+> repositorio. Despliégalo siempre con el CLI:
+>
+> ```bash
+> firebase deploy --only firestore:rules
+> ```
+>
+> **Por qué se eliminó el DDL de ejemplo que estaba aquí:** era vulnerable y
+> permitía escalada de privilegios. En concreto:
+>
+> - `match /users/{userId}` con `allow write: if request.auth.uid == userId`
+>   dejaba que **cualquier usuario escribiera su propio campo `role`** y se
+>   pusiera `role: "admin"`. Como el resto de reglas concedían permisos de admin
+>   con `get(.../users/$(uid)).data.role == 'admin'`, cualquiera podía
+>   **auto-coronarse administrador**.
+> - `payments` y `subscriptions` con `allow write: if request.auth != null`
+>   permitían a cualquier autenticado **crear/editar pagos y activarse una
+>   suscripción sin pagar**.
+>
+> Las reglas reales en `firestore.rules` ya corrigen esto: `subscriptions` y
+> `admins` son `write: if false` (solo las Cloud Functions, vía Admin SDK,
+> pueden escribirlas), `payments` solo lo crea el conductor con restricciones y
+> el update/delete es exclusivo de admin, y la elevación de rol pasa por
+> `isAdmin()`. No reintroduzcas reglas inline en esta guía.
 
 ### 7. Índices Firestore
 
@@ -176,18 +150,33 @@ Crea estos índices en Firebase Console → Firestore → Índices:
 En `lib/core/constants/app_constants.dart` ajusta los precios según tu modelo de negocio:
 
 ```dart
-static const double weeklyPrice = 35000;   // $35.000 COP / semana
-static const double monthlyPrice = 120000;  // $120.000 COP / mes
+static const double weeklyPrice = 40000;   // $40.000 COP / semana
+static const double monthlyPrice = 140000;  // $140.000 COP / mes
 ```
 
 ### 11. Crear primer Administrador
 
-Regístra un usuario normal, luego en Firestore actualiza manualmente:
+El **primer** administrador se crea manualmente (bootstrap). Esto es necesario
+porque las reglas de Firestore impiden que un usuario se asigne `role` a sí mismo,
+y la Cloud Function `setAdminRole` exige que quien la invoca **ya sea admin**.
+
+1. Registra un usuario normal en la app.
+2. En **Firebase Console → Firestore** (como Owner del proyecto, lo que omite las
+   reglas de seguridad) edita su documento:
 
 ```
 users/{userId}
   role: "admin"
 ```
+
+> A partir de aquí **NO vuelvas a editar roles a mano.** Los siguientes
+> administradores se asignan con la Cloud Function `setAdminRole`, que valida que
+> el solicitante sea admin y deja registro de auditoría:
+>
+> ```
+> POST /setAdminRole   (Authorization: Bearer <ID token de un admin>)
+> body: { "userId": "<uid destino>", "makeAdmin": true }
+> ```
 
 ### 12. Ejecutar la app
 
