@@ -162,7 +162,8 @@ async function verifyToken(req) {
   const auth = (req.headers.authorization || "");
   if (!auth.startsWith("Bearer ")) return null;
   try {
-    return await admin.auth().verifyIdToken(auth.split("Bearer ")[1]);
+    // checkRevoked=true: rechaza tokens de cuentas bloqueadas/revocadas.
+    return await admin.auth().verifyIdToken(auth.split("Bearer ")[1], true);
   } catch {
     return null;
   }
@@ -615,7 +616,7 @@ exports.wompiWebhook = onRequest({ ...OPTS, invoker: "public" }, async (req, res
     batch.update(driverRef, {
       subscriptionStatus: "active",
       subscriptionPlan:   plan,
-      subscriptionEnd:    endDate,
+      subscriptionExpiry: endDate,
       updatedAt:          admin.firestore.Timestamp.now(),
     });
 
@@ -816,6 +817,7 @@ exports.cancelStaleTrips = onSchedule({
   const stale = await db.collection("trips")
     .where("status", "==", "requested")
     .where("createdAt", "<", cutoff)
+    .limit(500) // máx. de operaciones por WriteBatch en Firestore
     .get();
 
   if (stale.empty) return;

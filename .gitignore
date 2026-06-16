@@ -53,3 +53,10 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Test secrets (nunca commitear)
+test/scripts/serviceAccountKey.json
+test/scripts/tokens.env
+test/scripts/tokens.json
+test/coverage/
+test/node_modules/

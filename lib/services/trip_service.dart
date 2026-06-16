@@ -190,7 +190,11 @@ class TripService {
     required String vehiclePlate,
     required String vehicleType,
   }) async {
-    await _trips.doc(tripId).update({
+    // Escritura atómica: el viaje queda asignado y el conductor pasa a busy
+    // en una sola operación. Si falla una, falla todo (evita conductor libre
+    // con viaje ya asignado).
+    final batch = _firestore.batch();
+    batch.update(_trips.doc(tripId), {
       'driverId': driverId,
       'driverName': driverName,
       'driverPhone': driverPhone,
@@ -200,11 +204,11 @@ class TripService {
       'assignmentType': 'manual',
       'acceptedAt': FieldValue.serverTimestamp(),
     });
-
-    await _firestore
-        .collection(AppConstants.driversCollection)
-        .doc(driverId)
-        .update({'status': AppConstants.driverStatusBusy});
+    batch.update(
+      _firestore.collection(AppConstants.driversCollection).doc(driverId),
+      {'status': AppConstants.driverStatusBusy},
+    );
+    await batch.commit();
   }
 
   // Calificar viaje (pasajero califica al conductor).

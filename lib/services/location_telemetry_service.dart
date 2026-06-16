@@ -87,6 +87,10 @@ class LocationTelemetryService {
         'lat': lat,
         'lng': lng,
         'status': status,
+      }).catchError((Object e) {
+        // Fallo de red o token revocado (conductor bloqueado): log silencioso,
+        // no debe lanzar excepción no controlada en el hilo asíncrono.
+        return <String, dynamic>{};
       }));
 
       // Slow path: Firestore throttled
@@ -97,7 +101,10 @@ class LocationTelemetryService {
           : now.difference(lastWrite);
       if (elapsed.inSeconds >= _firestoreSyncIntervalSec) {
         _lastFirestoreWrite[driverId] = now;
-        unawaited(_writeToFirestore(driverId: driverId, lat: lat, lng: lng));
+        unawaited(
+          _writeToFirestore(driverId: driverId, lat: lat, lng: lng)
+              .catchError((Object e) {/* log silencioso */}),
+        );
       }
     } else {
       // Solo Firestore (modo legacy / sin backend desplegado)

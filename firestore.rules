@@ -125,11 +125,12 @@ service cloud.firestore {
     match /driver_identities/{cedula} {
       // get: verificación de cédula duplicada durante el registro.
       allow get: if signedIn();
-      // list: necesario para verificar placa/celular duplicados en el
-      // registro. Si prefieres bloquear la descarga masiva de datos
-      // personales, mueve esas verificaciones a una Cloud Function y
-      // cambia esto a `if isAdmin()`.
-      allow list: if signedIn();
+      // list: solo administradores. La descarga masiva de datos personales
+      // (cédula, placa, teléfono) queda bloqueada para usuarios normales.
+      // La verificación de placa/celular duplicados durante el registro debe
+      // realizarse en el servidor (Cloud Function), no con consultas list
+      // directas del cliente sobre la colección completa.
+      allow list: if isAdmin();
 
       // Crear solo la propia identidad, con datos consistentes.
       allow create: if signedIn()

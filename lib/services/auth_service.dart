@@ -66,11 +66,20 @@ class AuthService {
     required String phone,
     required String password,
   }) async {
+    // 1. Crear cuenta Auth (errores específicos de Auth -> mensaje mapeado).
+    late UserCredential credential;
     try {
-      final credential = await _auth.createUserWithEmailAndPassword(
+      credential = await _auth.createUserWithEmailAndPassword(
         email: email.trim(),
         password: password,
       );
+    } on FirebaseAuthException catch (e) {
+      throw Exception(_mapFirebaseAuthException(e));
+    }
+
+    // 2. Guardar perfil. Si falla (red/permisos), borrar la cuenta Auth
+    //    recien creada para no dejarla huerfana (igual que registerDriver).
+    try {
       final uid = credential.user!.uid;
 
       final user = UserModel(
@@ -92,8 +101,9 @@ class AuthService {
       await credential.user!.updateDisplayName(name);
 
       return user;
-    } on FirebaseAuthException catch (e) {
-      throw Exception(_mapFirebaseAuthException(e));
+    } catch (e) {
+      await credential.user?.delete();
+      rethrow;
     }
   }
 

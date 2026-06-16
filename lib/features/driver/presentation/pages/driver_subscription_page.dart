@@ -662,8 +662,16 @@ class _PSEWebViewState extends State<_PSEWebView> {
             widget.onRedirectCapture(uri);
             return NavigationDecision.prevent;
           }
-          // 2. Bloquear navegación a dominios fuera de la lista permitida
-          if (!_isAllowedUrl(request.url)) {
+          // 2. Permitir la navegación del flujo PSE hacia los portales
+          //    bancarios externos (bancolombia, davivienda, nequi, etc.).
+          //    La URL de cierre del flujo ya se intercepta arriba con
+          //    redirectUrlPattern; aquí solo se bloquean esquemas peligrosos
+          //    para no abortar el pago en el login del banco.
+          final lower = request.url.toLowerCase();
+          if (lower.startsWith('javascript:') ||
+              lower.startsWith('data:') ||
+              lower.startsWith('file:') ||
+              lower.startsWith('content:')) {
             return NavigationDecision.prevent;
           }
           return NavigationDecision.navigate;
